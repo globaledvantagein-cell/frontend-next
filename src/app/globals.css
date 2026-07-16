@@ -1,26 +1,1242 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ── Reset ────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+/* ── Base ─────────────────────────────────────────── */
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+  transition: background 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+body.jobs-split-locked {
+  overflow: hidden;
+}
+
+body.jobs-split-locked #root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ═══════════════════════════════════════════════════
+   PAPER TEXTURE — dual-layer global overlay
+   Tune: --paper-grain-opacity, --paper-fiber-opacity,
+         --paper-contrast, --paper-noise-scale,
+         --paper-drift-distance, --paper-drift-duration
+   ═══════════════════════════════════════════════════ */
+
+/* Layer B: Grain/noise (stronger, animated drift) */
+body::after {
+  content: '';
+  position: fixed;
+  inset: -20px;
+  /* bleed hides drift edge seams */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-size: calc(var(--paper-noise-scale, 200) * 1px) calc(var(--paper-noise-scale, 200) * 1px);
+  pointer-events: none;
+  z-index: 9999;
+  opacity: var(--paper-grain-opacity, 0.11);
+  mix-blend-mode: multiply;
+  filter: contrast(var(--paper-contrast, 1.0));
+  will-change: transform;
+  animation: grain-drift var(--paper-drift-duration, 14s) ease-in-out infinite alternate;
+}
+
+/* Layer A: Paper fibers (softer, static depth) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.45' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23f)' opacity='0.06'/%3E%3C/svg%3E");
+  background-size: 300px 300px;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: var(--paper-fiber-opacity, 0.06);
+  mix-blend-mode: overlay;
+}
+
+/* Grain drift */
+@keyframes grain-drift {
+  0% {
+    transform: translate(0, 0);
+  }
+
+  50% {
+    transform: translate(var(--paper-drift-distance, 12px), calc(var(--paper-drift-distance, 12px) * -0.6));
+  }
+
+  100% {
+    transform: translate(calc(var(--paper-drift-distance, 12px) * -0.4), var(--paper-drift-distance, 12px));
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ── Typography helpers ───────────────────────────── */
+.font-sketch {
+  font-family: 'Caveat', 'Patrick Hand', 'Comic Neue', ui-sans-serif;
 }
+
+.font-sketch-num {
+  font-family: 'Caveat', 'Patrick Hand', ui-sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Scrollbar ────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--paper2);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 3px;
+}
+
+.thin-scroll::-webkit-scrollbar {
+  width: 3px;
+}
+
+/* ── Focus ring ───────────────────────────────────── */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ═══════════════════════════════════════════════════
+   TICKER
+   ═══════════════════════════════════════════════════ */
+@keyframes ticker {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ticker-track {
+  animation: ticker 40s linear infinite;
+}
+
+/* ── Company auto-ticker ───────────────────────────── */
+@keyframes company-ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.company-ticker-wrap {
+  position: relative;
+  overflow: hidden;
+  padding: 4px 0 12px;
+}
+
+.company-ticker-track {
+  display: inline-flex;
+  gap: 16px;
+  animation: company-ticker 30s linear infinite;
+  will-change: transform;
+  /* left padding so first card isn't flush against the gradient edge */
+  padding-left: 24px;
+}
+
+/* Pause when anything inside the ticker is hovered/focused */
+.company-ticker-wrap:hover .company-ticker-track,
+.company-ticker-wrap:focus-within .company-ticker-track {
+  animation-play-state: paused;
+}
+
+/* Fade edges using the section background colour */
+.company-ticker-wrap::before,
+.company-ticker-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 80px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.company-ticker-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--surface-solid), transparent);
+}
+
+.company-ticker-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--surface-solid), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .company-ticker-track {
+    animation-duration: 120s;
+  }
+}
+
+.ticker-wrap::before,
+.ticker-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 100px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.ticker-wrap::before {
+  left: 0;
+  background: linear-gradient(to right, var(--paper), transparent);
+}
+
+.ticker-wrap::after {
+  right: 0;
+  background: linear-gradient(to left, var(--paper), transparent);
+}
+
+/* ═══════════════════════════════════════════════════
+   ENTRANCE ANIMATIONS
+   ═══════════════════════════════════════════════════ */
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -300% 0;
+  }
+
+  to {
+    background-position: 300% 0;
+  }
+}
+
+/* Draw-in: stroke-dasharray reveal for borders */
+@keyframes drawIn {
+  from {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0;
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+/* Wobble settle: element drawn then settles */
+@keyframes wobbleSettle {
+  0% {
+    transform: rotate(calc(var(--card-tilt, 0) * 2.5)) scale(0.97);
+    opacity: 0;
+  }
+
+  50% {
+    transform: rotate(calc(var(--card-tilt, 0) * -1.5));
+    opacity: 1;
+  }
+
+  70% {
+    transform: rotate(calc(var(--card-tilt, 0) * 0.8));
+  }
+
+  100% {
+    transform: rotate(var(--card-tilt, 0)) translateX(var(--card-shift, 0)) scale(1);
+  }
+}
+
+.anim-up {
+  animation: fadeUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-in {
+  animation: fadeIn 0.35s ease both;
+}
+
+.anim-scale {
+  animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.anim-draw {
+  animation: drawIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger>* {
+  animation: wobbleSettle 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.stagger>*:nth-child(1) {
+  animation-delay: .04s
+}
+
+.stagger>*:nth-child(2) {
+  animation-delay: .09s
+}
+
+.stagger>*:nth-child(3) {
+  animation-delay: .14s
+}
+
+.stagger>*:nth-child(4) {
+  animation-delay: .19s
+}
+
+.stagger>*:nth-child(5) {
+  animation-delay: .24s
+}
+
+.stagger>*:nth-child(6) {
+  animation-delay: .29s
+}
+
+.stagger>*:nth-child(n+7) {
+  animation-delay: .34s
+}
+
+/* ── Sanitized HTML job description ───────────────── */
+/* Applied when DescriptionHtml is available from the scraper.           */
+/* All structural tags are kept; presentational tags were stripped at     */
+/* ingest time by SanitizeHtml() in utils.js.                            */
+.job-description-html {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.job-description-html > :first-child {
+  margin-top: 0 !important;
+}
+/* Hide empty paragraphs and nbsp-only paragraphs */
+.job-description-html p:empty,
+.job-description-html p:has(> br:only-child) {
+  display: none;
+}
+.job-description-html p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.75;
+  margin-bottom: 10px;
+}
+.job-description-html ul,
+.job-description-html ol {
+  margin: 0 0 12px 8px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  display: grid;
+  gap: 6px;
+}
+.job-description-html li {
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+.job-description-html h1,
+.job-description-html h2,
+.job-description-html h3,
+.job-description-html h4,
+.job-description-html h5,
+.job-description-html h6 {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 20px 0 10px;
+}
+.job-description-html h1:first-child,
+.job-description-html h2:first-child,
+.job-description-html h3:first-child,
+.job-description-html h4:first-child {
+  margin-top: 0;
+}
+.job-description-html strong,
+.job-description-html b {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.job-description-html em,
+.job-description-html i {
+  font-style: italic;
+}
+
+/* ── Skeleton ─────────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--paper2) 25%, var(--surface-solid) 50%, var(--paper2) 75%);
+  background-size: 300% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  border-radius: 10px;
+}
+
+/* ── Dot grid pattern (notebook paper feel) ───────── */
+.grid-bg {
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* ═══════════════════════════════════════════════════
+   NAV — hand-drawn tabs / bookmarks
+   ═══════════════════════════════════════════════════ */
+.nav-blur {
+  background: color-mix(in srgb, var(--paper) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+/* Nav link: sketched underline that draws in when active */
+.nav-tab {
+  position: relative;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 5px 2px;
+  transition: color 0.22s;
+}
+
+.nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: -2px;
+  right: -2px;
+  height: 2.5px;
+  background: var(--primary);
+  border-radius: 2px;
+  transform: scaleX(0) rotate(-0.5deg);
+  transform-origin: left center;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav-tab.active::after {
+  transform: scaleX(1) rotate(-0.5deg);
+}
+
+.nav-tab:hover::after {
+  transform: scaleX(0.6) rotate(-0.5deg);
+}
+
+.nav-tab.active:hover::after {
+  transform: scaleX(1) rotate(-0.5deg);
+}
+
+/* ═══════════════════════════════════════════════════
+   JOB CARD hover bar (sketch ink accent)
+   ═══════════════════════════════════════════════════ */
+.job-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.job-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--primary);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.job-card:hover {
+  border-color: var(--primary) !important;
+  /* No positional shift on hover — border + shadow convey the state. */
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Why cards ────────────────────────────────────── */
+.why-card {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (hover: hover) {
+  .why-card:hover {
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10), 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .why-card {
+    transition: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   SKETCH-INK: double-stroke illusion for components
+   Apply .sketch-ink to any bordered element.
+   ═══════════════════════════════════════════════════ */
+.sketch-ink {
+  position: relative;
+}
+
+.sketch-ink::before,
+.sketch-ink::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sketch-wobble, 0.6px));
+  border: 1px solid var(--ink-border, var(--border));
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sketch-ink::before {
+  transform: rotate(var(--sketch-rotate, -0.15deg));
+  opacity: 0.20;
+}
+
+.sketch-ink::after {
+  transform: rotate(calc(-1 * var(--sketch-rotate, -0.15deg))) translateX(calc(var(--sketch-wobble, 0.6px) * 0.3));
+  opacity: 0.12;
+}
+
+/* ═══════════════════════════════════════════════════
+   SKETCH-CARD: double-stroke + surface highlight
+   ═══════════════════════════════════════════════════ */
+.sketch-card {
+  position: relative;
+  border: 1.25px solid var(--ink-border, var(--border));
+  border-radius: 14px;
+  box-shadow: var(--highlight-edge, none);
+}
+
+.sketch-card::before {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sketch-wobble, 0.6px));
+  border: 1px solid var(--ink-border, var(--border));
+  border-radius: 15px;
+  opacity: var(--sketch-outline-opacity, 0.22);
+  pointer-events: none;
+  transform: rotate(var(--sketch-rotate, -0.15deg));
+}
+
+.sketch-card::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--sketch-wobble, 0.6px) * 0.5);
+  border: 1px solid var(--ink-border, var(--border));
+  border-radius: 15px;
+  opacity: calc(var(--sketch-outline-opacity, 0.22) * 0.5);
+  pointer-events: none;
+  transform: rotate(calc(-1 * var(--sketch-rotate, -0.15deg)));
+}
+
+/* ── Sketch surface highlight (stacked paper) ─────── */
+.sketch-surface {
+  box-shadow: var(--highlight-edge, none), var(--shadow-sm);
+}
+
+/* ── Sketch border utility ────────────────────────── */
+.sketch-border {
+  border: 1.25px solid var(--ink-border, var(--border));
+  border-radius: 14px;
+}
+
+/* ═══════════════════════════════════════════════════
+   MARKER HIGHLIGHT hover effect
+   A translucent "marker stroke" behind hovered elements
+   ═══════════════════════════════════════════════════ */
+/* marker-hover REMOVED — its ::before drew a translucent shape inset -2px -4px
+   BEYOND the element, so on hover a box grew behind buttons (the "double
+   border / expanding" look). Buttons now change background-color only. */
+
+/* The only hover a button gets: a subtle background-color change. Gated to
+   pointer devices, and !important because Button.tsx sets its base background
+   inline (inline styles otherwise beat a stylesheet :hover rule). */
+@media (hover: hover) and (pointer: fine) {
+  .btn-ghost:hover,
+  .btn-outline:hover {
+    background-color: var(--bg-surface-2) !important;
+  }
+  .btn-primary:hover {
+    background-color: var(--primary-hover) !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   MICRO-IMPERFECTIONS — deterministic per-card tilt
+   Uses nth-child to assign tiny rotation/offset.
+   Max tilt 0.4deg, max shift ~1.5px.
+   ═══════════════════════════════════════════════════ */
+.micro-imperfect>*:nth-child(6n+1) {
+  --card-tilt: 0.15deg;
+  --card-shift: 0.5px;
+}
+
+.micro-imperfect>*:nth-child(6n+2) {
+  --card-tilt: -0.25deg;
+  --card-shift: -1px;
+}
+
+.micro-imperfect>*:nth-child(6n+3) {
+  --card-tilt: 0.35deg;
+  --card-shift: 0.8px;
+}
+
+.micro-imperfect>*:nth-child(6n+4) {
+  --card-tilt: -0.12deg;
+  --card-shift: -0.5px;
+}
+
+.micro-imperfect>*:nth-child(6n+5) {
+  --card-tilt: 0.28deg;
+  --card-shift: 1.2px;
+}
+
+.micro-imperfect>*:nth-child(6n+6) {
+  --card-tilt: -0.38deg;
+  --card-shift: -0.3px;
+}
+
+.micro-imperfect>* {
+  transform: rotate(var(--card-tilt, 0)) translateX(var(--card-shift, 0));
+}
+
+/* ═══════════════════════════════════════════════════
+   PENCIL CHART styles — hand-drawn feel for SVG charts
+   Target chart container with .pencil-chart class
+   ═══════════════════════════════════════════════════ */
+.pencil-chart line,
+.pencil-chart .recharts-cartesian-grid-horizontal line,
+.pencil-chart .recharts-cartesian-grid-vertical line {
+  stroke-dasharray: 4 3;
+  stroke-opacity: 0.25;
+  stroke-width: 0.75;
+}
+
+.pencil-chart path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pencil-chart .recharts-dot circle {
+  r: 3;
+  stroke-width: 1.5;
+}
+
+.pencil-chart text {
+  font-family: 'Caveat', ui-sans-serif;
+  font-size: 0.8rem;
+}
+
+/* Pencil line draw-in animation */
+.pencil-chart .recharts-line-curve {
+  stroke-dasharray: 2000;
+  stroke-dashoffset: 2000;
+  animation: pencilDraw 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pencilDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   GLOW ORB
+   ═══════════════════════════════════════════════════ */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+}
+
+/* ═══════════════════════════════════════════════════
+   LAYOUT UTILITIES
+   ═══════════════════════════════════════════════════ */
+
+/* Snap carousel */
+.snap-carousel {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+
+.snap-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.snap-carousel>* {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* Sticky filter bar */
+.sticky-filter-bar {
+  position: sticky;
+  top: 60px;
+  z-index: 40;
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--surface-solid) 92%, transparent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1.25px solid var(--ink-border, var(--border));
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+
+/* Companies grid */
+.companies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 600px) {
+  .companies-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   ACCESSIBILITY — prefers-reduced-motion
+   Disables all animations globally for users who
+   prefer reduced motion. Grain drift, wobble settle,
+   draw-in, marker hover transitions all disabled.
+   ═══════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    animation: none;
+    will-change: auto;
+  }
+
+  .stagger>* {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .micro-imperfect>* {
+    transform: none !important;
+  }
+
+  .anim-up,
+  .anim-in,
+  .anim-scale,
+  .anim-draw {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .pencil-chart .recharts-line-curve {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+  }
+
+  .nav-tab::after {
+    transition: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE SYSTEM
+   Breakpoints:
+   xs:  < 380px   (small mobile)
+   sm:  380–640px (mobile)
+   md:  640–768px (large mobile / small tablet)
+   lg:  768–1024px (tablet)
+   xl:  1024–1280px (small laptop)
+   2xl: 1280–1440px (laptop)
+   3xl: 1440–1920px (desktop)
+   4xl: > 1920px  (large desktop / TV)
+   ═══════════════════════════════════════════════════ */
+
+/* ── Safe-area spacing helpers ─────────────────────── */
+.safe-top    { padding-top:    env(safe-area-inset-top); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-left   { padding-left:   env(safe-area-inset-left); }
+.safe-right  { padding-right:  env(safe-area-inset-right); }
+
+/* ── Mobile nav drawer ─────────────────────────────── */
+.nav-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 59;
+  animation: fadeIn 0.18s ease both;
+}
+
+.nav-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 88vw);
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+@keyframes slideOutRight {
+  from { transform: translateX(0); }
+  to   { transform: translateX(100%); }
+}
+
+.nav-drawer.closing {
+  animation: slideOutRight 0.18s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+/* ── Bottom sheet ──────────────────────────────────── */
+.bottom-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 200;
+  animation: fadeIn 0.18s ease both;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: slideInUp 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideInUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@keyframes slideOutDown {
+  from { transform: translateY(0); }
+  to   { transform: translateY(100%); }
+}
+
+.bottom-sheet.closing {
+  animation: slideOutDown 0.2s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 10px auto 0;
+  flex-shrink: 0;
+}
+
+.bottom-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.bottom-sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  padding: 12px 16px;
+}
+
+.bottom-sheet-footer {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Sticky bottom bar (mobile detail apply/actions) ── */
+.sticky-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 16px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+/* ── Mobile detail slide-in overlay ──────────────────── */
+.mobile-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg-base, #FAF7F1);
+    overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideInFromRight 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+  padding-top: env(safe-area-inset-top);
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0.6; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.mobile-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-surface);
+  flex-shrink: 0;
+  min-height: 52px;
+}
+
+.mobile-detail-body {
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: 12px 12px 32px;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Touch targets ──────────────────────────────────── */
+@media (max-width: 767px) {
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  button,
+  [role="button"],
+  a,
+  select,
+  input[type="checkbox"],
+  input[type="radio"] {
+    min-height: 44px;
+  }
+
+  /* Override for small decorative buttons (pagination dots, etc.) */
+  .no-touch-expand {
+    min-height: unset !important;
+    min-width: unset !important;
+  }
+}
+
+/* ── Hover effects: only real pointer devices ─────────── */
+@media (hover: none) {
+  .job-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: var(--border) !important;
+  }
+
+  .job-card::before {
+    display: none;
+  }
+}
+
+/* ── Split view responsive grid ──────────────────────── */
+.split-grid {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .split-grid {
+    display: grid;
+    grid-template-columns: 40% 60%;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+@media (min-width: 1024px) {
+  .split-grid {
+    grid-template-columns: 35% 65%;
+  }
+}
+
+@media (min-width: 1440px) {
+  .split-grid {
+    grid-template-columns: 30% 70%;
+    max-width: 1600px;
+  }
+}
+
+@media (min-width: 1920px) {
+  .split-grid {
+    grid-template-columns: 28% 72%;
+    max-width: 1800px;
+  }
+}
+
+.mobile-list-only {
+  display: flex;
+  flex-direction: column;
+}
+
+@media (min-width: 768px) {
+  .mobile-list-only {
+    display: none !important;
+  }
+}
+
+/* ── Container max widths ────────────────────────────── */
+@media (min-width: 1440px) {
+  .container-responsive {
+    max-width: 1600px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+@media (min-width: 1920px) {
+  .container-responsive {
+    max-width: 1800px;
+  }
+
+  .container-responsive .right-panel-text {
+    max-width: 800px;
+  }
+}
+
+/* ── Filter bar responsive ───────────────────────────── */
+.filter-bar-full {
+  display: none;
+}
+
+.filter-bar-tablet {
+  display: none;
+}
+
+.filter-bar-mobile {
+  display: flex;
+}
+
+@media (min-width: 768px) {
+  .filter-bar-mobile {
+    display: none;
+  }
+
+  .filter-bar-tablet {
+    display: flex;
+  }
+}
+
+@media (min-width: 1024px) {
+  .filter-bar-tablet {
+    display: none;
+  }
+
+  .filter-bar-full {
+    display: flex;
+  }
+}
+
+/* ── Typography clamp scales ─────────────────────────── */
+.type-page-title    { font-size: clamp(1.4rem, 3vw, 2.2rem); }
+.type-section-title { font-size: clamp(1.1rem, 2.5vw, 1.5rem); }
+.type-job-title-detail { font-size: clamp(1.2rem, 2.5vw, 1.6rem); }
+.type-job-title-card   { font-size: clamp(0.82rem, 1.8vw, 0.95rem); }
+.type-body          { font-size: clamp(0.8rem, 1.5vw, 0.9rem); }
+.type-badge         { font-size: clamp(0.6rem, 1.2vw, 0.72rem); }
+.type-filter        { font-size: clamp(0.7rem, 1.3vw, 0.8rem); }
+.type-muted         { font-size: clamp(0.7rem, 1.3vw, 0.82rem); }
+
+/* ── Large desktop text comfort ─────────────────────── */
+@media (min-width: 1920px) {
+  body {
+    font-size: 1.05rem;
+  }
+
+  .split-grid .right-panel-content {
+    max-width: 800px;
+  }
+}
+
+/* ── Home page responsive ────────────────────────────── */
+@media (max-width: 767px) {
+  .hero-cta-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .hero-cta-group a,
+  .hero-cta-group button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hero-stats-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px 16px;
+    justify-items: center;
+  }
+
+  .why-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .why-card {
+    padding: 20px !important;
+  }
+
+  .newsletter-form {
+    flex-direction: column;
+  }
+
+  .newsletter-form input,
+  .newsletter-form button {
+    width: 100%;
+  }
+}
+
+/* ── Signup page ─────────────────────────────────────── */
+@media (max-width: 767px) {
+  .signup-form-panel {
+    padding: 28px 18px !important;
+  }
+}
+
+/* ── Card badge text ─────────────────────────────────── */
+.badge-text {
+  font-size: clamp(0.6rem, 1.2vw, 0.72rem);
+}
+
+/* ── Collapsible section ────────────────────────────── */
+.collapsible-body {
+  overflow: hidden;
+  transition: max-height 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+}
+
+.collapsible-body.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+}
+
+.collapsible-body.expanded {
+  opacity: 1;
+}
+
+/* ── Active press feedback ──────────────────────────── */
+/* Touch: instant dim + shrink (no transition needed on tap). */
+@media (hover: none) {
+  button:active,
+  [role="button"]:active {
+    opacity: 0.75;
+    transform: scale(0.97);
+  }
+}
+
+/* Pointer devices had NO press feedback before — every pressable element
+   should confirm the press. scale(0.97) is subtle; the transition back up
+   comes from each button's own `transform` transition. */
+@media (hover: hover) and (pointer: fine) {
+  button:active,
+  [role="button"]:active {
+    transform: scale(0.97);
+  }
+}
+/* ── Theme toggle icon (CSS-driven, hydration-safe) ───────────────────
+   Both icons are always in the DOM; we reveal one via the data-theme
+   attribute the ThemeProvider sets on <html>. No React conditional →
+   no SSR/client hydration mismatch. Default (no attr) = light = Moon. */
+.theme-icon { display: none; align-items: center; justify-content: center; }
+.theme-icon--light { display: inline-flex; }
+.theme-icon--dark { display: none; }
+[data-theme='dark'] .theme-icon--light { display: none; }
+[data-theme='dark'] .theme-icon--dark { display: inline-flex; }
