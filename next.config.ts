@@ -16,6 +16,17 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+        ],
+      },
+    ];
+  },
+
   images: {
     // Company logos / avatars can come from anywhere; keep it permissive.
     remotePatterns: [

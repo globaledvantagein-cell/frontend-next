@@ -13,9 +13,16 @@ interface JobsListResponse {
   totalJobs: number;
 }
 
-async function getJson<T>(path: string): Promise<T | null> {
+// `revalidate` (seconds) opts a fetch into Next's ISR data cache via
+// `next: { revalidate }`. Omit it to stay uncached (`no-store`) — the correct
+// default for per-visitor/dynamic pages (e.g. the gated job detail). In Next
+// 16 a `no-store` fetch forces the whole route dynamic, so cacheable SEO pages
+// MUST pass a revalidate here, not just set the segment export.
+async function getJson<T>(path: string, revalidate?: number): Promise<T | null> {
   try {
-    const res = await fetch(`${API_ORIGIN}${path}`, { cache: 'no-store' });
+    const init: RequestInit =
+      revalidate != null ? { next: { revalidate } } : { cache: 'no-store' };
+    const res = await fetch(`${API_ORIGIN}${path}`, init);
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -23,19 +30,20 @@ async function getJson<T>(path: string): Promise<T | null> {
   }
 }
 
-/** GET /api/jobs — returns { jobs, totalJobs }. */
+/** GET /api/jobs — returns { jobs, totalJobs }. Pass `revalidate` to cache (ISR). */
 export async function fetchJobs(params: {
   search?: string;
   category?: string;
   limit?: number;
   page?: number;
+  revalidate?: number;
 }): Promise<JobsListResponse> {
   const qs = new URLSearchParams();
   if (params.search) qs.set('search', params.search);
   if (params.category) qs.set('category', params.category);
   qs.set('limit', String(params.limit ?? 100));
   if (params.page) qs.set('page', String(params.page));
-  const data = await getJson<JobsListResponse>(`/api/jobs?${qs.toString()}`);
+  const data = await getJson<JobsListResponse>(`/api/jobs?${qs.toString()}`, params.revalidate);
   return data ?? { jobs: [], totalJobs: 0 };
 }
 
@@ -79,11 +87,13 @@ export interface CareerArticle {
   updatedAt?: string;
 }
 
-async function fetchAdminArticles(): Promise<CareerArticle[]> {
+async function fetchAdminArticles(revalidate?: number): Promise<CareerArticle[]> {
   const token = process.env.CAREER_GUIDE_SERVICE_TOKEN;
   try {
+    const cacheInit: RequestInit =
+      revalidate != null ? { next: { revalidate } } : { cache: 'no-store' };
     const res = await fetch(`${API_ORIGIN}/api/admin/career-guide`, {
-      cache: 'no-store',
+      ...cacheInit,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
     if (!res.ok) return [];
@@ -94,15 +104,21 @@ async function fetchAdminArticles(): Promise<CareerArticle[]> {
   }
 }
 
-export async function fetchPublishedArticles(): Promise<CareerArticle[]> {
-  const all = await fetchAdminArticles();
+export async function fetchPublishedArticles(revalidate?: number): Promise<CareerArticle[]> {
+  const all = await fetchAdminArticles(revalidate);
   return all.filter((a) => a.status === 'published');
 }
 
-export async function fetchArticlesByCategory(category: string): Promise<CareerArticle[]> {
-  return (await fetchPublishedArticles()).filter((a) => a.category === category);
+export async function fetchArticlesByCategory(
+  category: string,
+  revalidate?: number,
+): Promise<CareerArticle[]> {
+  return (await fetchPublishedArticles(revalidate)).filter((a) => a.category === category);
 }
 
-export async function fetchArticleBySlug(slug: string): Promise<CareerArticle | null> {
-  return (await fetchPublishedArticles()).find((a) => a.slug === slug) ?? null;
+export async function fetchArticleBySlug(
+  slug: string,
+  revalidate?: number,
+): Promise<CareerArticle | null> {
+  return (await fetchPublishedArticles(revalidate)).find((a) => a.slug === slug) ?? null;
 }

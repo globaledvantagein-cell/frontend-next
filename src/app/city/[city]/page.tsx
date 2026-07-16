@@ -6,7 +6,17 @@ import { fetchJobs, SITE_URL } from '@/lib/serverApi';
 import SeoJobCard from '@/components/seo/SeoJobCard';
 import JsonLd, { itemListJsonLd, breadcrumbJsonLd } from '@/components/seo/JsonLd';
 
-export const dynamic = 'force-dynamic';
+// ISR: cache the rendered page and revalidate hourly. Job listings change
+// slowly, so serving cached HTML is a big win; the fetches below opt into the
+// same window via `revalidate` (a `no-store` fetch would force this route
+// dynamic and defeat the cache).
+export const revalidate = 3600;
+
+// Prerender every known city at build so each page is static + ISR (served
+// instantly), not dynamically rendered on the first request.
+export function generateStaticParams() {
+  return CANONICAL_CITIES.map((c) => ({ city: c.slug }));
+}
 
 type Params = { params: Promise<{ city: string }> };
 
@@ -14,7 +24,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params;
   const city = findCityBySlug(slug);
   if (!city) return { title: 'City not found' };
-  const { totalJobs } = await fetchJobs({ search: city.slug, limit: 1 });
+  const { totalJobs } = await fetchJobs({ search: city.slug, limit: 1, revalidate: 3600 });
   const title = `English Jobs in ${city.label} — No German Required`;
   const description = `Browse ${totalJobs} English-speaking ${
     totalJobs === 1 ? 'job' : 'jobs'
@@ -32,7 +42,7 @@ export default async function CityPage({ params }: Params) {
   const city = findCityBySlug(slug);
   if (!city) notFound();
 
-  const { jobs, totalJobs } = await fetchJobs({ search: city.slug, limit: 100 });
+  const { jobs, totalJobs } = await fetchJobs({ search: city.slug, limit: 100, revalidate: 3600 });
   const otherCities = CANONICAL_CITIES.filter((c) => c.slug !== city.slug).slice(0, 24);
 
   const title = `English Jobs in ${city.label} — No German Required`;

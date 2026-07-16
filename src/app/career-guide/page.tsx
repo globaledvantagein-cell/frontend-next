@@ -4,7 +4,10 @@ import { fetchPublishedArticles, SITE_URL } from '@/lib/serverApi';
 import { CAREER_GUIDE_CATEGORIES, careerCategoryLabel } from '@/data/careerGuide';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 
-export const dynamic = 'force-dynamic';
+// ISR: articles change rarely, so cache the page and revalidate hourly. The
+// article fetch passes the same `revalidate` (a `no-store` fetch would force
+// this route dynamic and defeat the cache).
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Germany Career Guide — Working in Germany Without German',
@@ -14,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default async function CareerGuideHub() {
-  const articles = await fetchPublishedArticles();
+  const articles = await fetchPublishedArticles(3600);
   const counts = new Map<string, number>();
   for (const a of articles) counts.set(a.category, (counts.get(a.category) || 0) + 1);
   const latest = [...articles]

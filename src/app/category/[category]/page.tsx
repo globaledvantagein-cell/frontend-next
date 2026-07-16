@@ -6,7 +6,16 @@ import { fetchJobs, SITE_URL } from '@/lib/serverApi';
 import SeoJobCard from '@/components/seo/SeoJobCard';
 import JsonLd, { itemListJsonLd, breadcrumbJsonLd } from '@/components/seo/JsonLd';
 
-export const dynamic = 'force-dynamic';
+// ISR: cache the rendered page and revalidate hourly (see city page). The
+// fetches below pass the same `revalidate` so `no-store` doesn't force the
+// route dynamic.
+export const revalidate = 3600;
+
+// Prerender every category at build so each page is static + ISR (served
+// instantly), not dynamically rendered on the first request.
+export function generateStaticParams() {
+  return CATEGORY_ORDER.map((category) => ({ category }));
+}
 
 type Params = { params: Promise<{ category: string }> };
 
@@ -18,7 +27,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { category: slug } = await params;
   if (!isCategory(slug)) return { title: 'Category not found' };
   const label = CATEGORY_LABELS[slug];
-  const { totalJobs } = await fetchJobs({ category: slug, limit: 1 });
+  const { totalJobs } = await fetchJobs({ category: slug, limit: 1, revalidate: 3600 });
   const title = `English ${label} Jobs in Germany — No German Required`;
   const description = `Browse ${totalJobs} English-speaking ${label} ${
     totalJobs === 1 ? 'role' : 'roles'
@@ -36,7 +45,7 @@ export default async function CategoryPage({ params }: Params) {
   if (!isCategory(slug)) notFound();
   const label = CATEGORY_LABELS[slug];
 
-  const { jobs, totalJobs } = await fetchJobs({ category: slug, limit: 100 });
+  const { jobs, totalJobs } = await fetchJobs({ category: slug, limit: 100, revalidate: 3600 });
   const otherCategories = CATEGORY_ORDER.filter((c) => c !== slug);
 
   const title = `English ${label} Jobs in Germany`;
