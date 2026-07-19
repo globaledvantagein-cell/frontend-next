@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { IJob } from '../types';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../utils/categorize';
-import { apiGet } from '../utils/jobApi';
+import { apiGet, apiGetCached } from '../utils/jobApi';
 import {
   PAGE_SIZE,
   SEARCH_DEBOUNCE_MS,
@@ -79,7 +79,11 @@ export function useJobFilters(initialCompany?: string) {
   useEffect(() => {
     const ctrl = new AbortController();
 
-    apiGet<string[]>('/api/jobs/company-names', { signal: ctrl.signal, noAuth: true })
+    // Stable, low-churn dropdown data — cache 10 min (memory + localStorage).
+    apiGetCached<string[]>('/api/jobs/company-names', {
+      signal: ctrl.signal, noAuth: true,
+      memoryTtlMs: 10 * 60 * 1000, localTtlMs: 10 * 60 * 1000,
+    })
       .then(names => {
         if (!Array.isArray(names)) return;
         setCompanyOptions([
@@ -89,7 +93,10 @@ export function useJobFilters(initialCompany?: string) {
       })
       .catch(() => {}); // non-critical
 
-    apiGet<Record<string, number>>('/api/jobs/category-counts', { signal: ctrl.signal, noAuth: true })
+    apiGetCached<Record<string, number>>('/api/jobs/category-counts', {
+      signal: ctrl.signal, noAuth: true,
+      memoryTtlMs: 10 * 60 * 1000, localTtlMs: 10 * 60 * 1000,
+    })
       .then(counts => {
         if (!counts || typeof counts !== 'object') return;
         setCategoryOptions(
