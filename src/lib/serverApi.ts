@@ -87,26 +87,22 @@ export interface CareerArticle {
   updatedAt?: string;
 }
 
-async function fetchAdminArticles(revalidate?: number): Promise<CareerArticle[]> {
-  const token = process.env.CAREER_GUIDE_SERVICE_TOKEN;
+// Public, unauthenticated endpoint — returns published articles only. No
+// service token required (the old /api/admin/career-guide route needed a
+// CAREER_GUIDE_SERVICE_TOKEN that expired and silently emptied these pages).
+export async function fetchPublishedArticles(revalidate?: number): Promise<CareerArticle[]> {
   try {
     const cacheInit: RequestInit =
       revalidate != null ? { next: { revalidate } } : { cache: 'no-store' };
-    const res = await fetch(`${API_ORIGIN}/api/admin/career-guide`, {
-      ...cacheInit,
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
+    const res = await fetch(`${API_ORIGIN}/api/career-guide`, cacheInit);
     if (!res.ok) return [];
     const data = (await res.json()) as { success?: boolean; articles?: CareerArticle[] };
-    return Array.isArray(data.articles) ? data.articles : [];
+    const articles = Array.isArray(data.articles) ? data.articles : [];
+    // Defensive: the endpoint already filters to published, but never leak a draft.
+    return articles.filter((a) => a.status === 'published');
   } catch {
     return [];
   }
-}
-
-export async function fetchPublishedArticles(revalidate?: number): Promise<CareerArticle[]> {
-  const all = await fetchAdminArticles(revalidate);
-  return all.filter((a) => a.status === 'published');
 }
 
 export async function fetchArticlesByCategory(
