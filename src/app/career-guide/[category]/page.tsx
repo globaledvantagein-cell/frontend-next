@@ -3,11 +3,17 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { fetchArticlesByCategory, SITE_URL } from '@/lib/serverApi';
 import { CAREER_GUIDE_CATEGORIES, careerCategoryLabel } from '@/data/careerGuide';
+import { estimateReadingMinutes } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ category: string }> };
+
+function formatDate(value?: string | null): string {
+  if (!value) return '';
+  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { category } = await params;
@@ -28,7 +34,7 @@ export default async function CareerGuideCategory({ params }: Params) {
   const articles = await fetchArticlesByCategory(category);
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: 'clamp(20px,4vw,40px) clamp(16px,3vw,24px)' }}>
+    <div className="guide-hub">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: 'Home', url: `${SITE_URL}/` },
@@ -37,39 +43,38 @@ export default async function CareerGuideCategory({ params }: Params) {
         ])}
       />
 
-      <nav aria-label="Breadcrumb" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-        <Link href="/" style={{ color: 'inherit' }}>Home</Link>
-        {' › '}
-        <Link href="/career-guide" style={{ color: 'inherit' }}>Career Guide</Link>
-        {' › '}
+      <nav aria-label="Breadcrumb" className="article-crumbs">
+        <Link href="/">Home</Link>
+        <span aria-hidden="true">/</span>
+        <Link href="/career-guide">Career Guide</Link>
+        <span aria-hidden="true">/</span>
         <span style={{ color: 'var(--text-primary)' }}>{label}</span>
       </nav>
 
-      <h1 style={{ fontSize: 'clamp(1.5rem,4vw,2.2rem)', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-        {label}
-      </h1>
+      <header className="guide-hero">
+        <span className="guide-hero__eyebrow">Career Guide</span>
+        <h1 className="guide-hero__title">{label}</h1>
+      </header>
 
       {articles.length === 0 ? (
-        <p style={{ color: 'var(--text-secondary)', marginTop: 16 }}>
+        <p style={{ color: 'var(--text-secondary)' }}>
           No guides in this category yet. Back to the{' '}
-          <Link href="/career-guide" style={{ color: 'var(--primary)' }}>career guide</Link>.
+          <Link href="/career-guide" style={{ color: 'var(--acid)' }}>career guide</Link>.
         </p>
       ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: '24px 0 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="guide-article-grid">
           {articles.map((a) => (
-            <li key={a._id} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 16 }}>
-              <Link
-                href={`/career-guide/${category}/${a.slug}`}
-                style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.05rem', textDecoration: 'none' }}
-              >
-                {a.title}
-              </Link>
-              {a.description && (
-                <p style={{ color: 'var(--text-secondary)', margin: '6px 0 0', fontSize: '0.9rem' }}>{a.description}</p>
-              )}
-            </li>
+            <Link key={a._id} href={`/career-guide/${category}/${a.slug}`} className="article-card">
+              <span className="article-card__badge">{label}</span>
+              <span className="article-card__title">{a.title}</span>
+              {a.description && <span className="article-card__desc">{a.description}</span>}
+              <span className="guide-article-card__meta">
+                {a.publishedAt && <>{formatDate(a.publishedAt)}<span aria-hidden="true"> · </span></>}
+                {estimateReadingMinutes(a.content)} min read
+              </span>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

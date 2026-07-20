@@ -1,14 +1,22 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { fetchArticleBySlug, SITE_URL } from '@/lib/serverApi';
+import { fetchArticleBySlug, fetchArticlesByCategory, SITE_URL } from '@/lib/serverApi';
 import { careerCategoryLabel } from '@/data/careerGuide';
-import { renderMarkdown } from '@/lib/markdown';
+import { renderArticle } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
+import ReadingProgress from '@/components/ReadingProgress';
+import TableOfContents from '@/components/TableOfContents';
+import ArticleShare from '@/components/ArticleShare';
 
 export const dynamic = 'force-dynamic';
 
 type Params = { params: Promise<{ category: string; slug: string }> };
+
+function formatDate(value?: string | null): string {
+  if (!value) return '';
+  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
@@ -34,11 +42,17 @@ export default async function CareerGuideArticle({ params }: Params) {
   if (article.category !== category) redirect(`/career-guide/${article.category}/${slug}`);
 
   const label = careerCategoryLabel(article.category);
-  const html = renderMarkdown(article.content);
+  const { html, headings, readingMinutes } = renderArticle(article.content);
   const pageUrl = `${SITE_URL}/career-guide/${article.category}/${slug}`;
 
+  const related = (await fetchArticlesByCategory(article.category))
+    .filter((a) => a.slug !== article.slug)
+    .slice(0, 3);
+
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: 'clamp(20px,4vw,40px) clamp(16px,3vw,24px)' }}>
+    <>
+      <ReadingProgress />
+
       <JsonLd
         data={breadcrumbJsonLd([
           { name: 'Home', url: `${SITE_URL}/` },
@@ -65,26 +79,72 @@ export default async function CareerGuideArticle({ params }: Params) {
         }}
       />
 
-      <nav aria-label="Breadcrumb" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
-        <Link href="/" style={{ color: 'inherit' }}>Home</Link>
-        {' › '}
-        <Link href="/career-guide" style={{ color: 'inherit' }}>Career Guide</Link>
-        {' › '}
-        <Link href={`/career-guide/${article.category}`} style={{ color: 'inherit' }}>{label}</Link>
-        {' › '}
-        <span style={{ color: 'var(--text-primary)' }}>{article.title}</span>
-      </nav>
+      <div className="article-shell">
+        <aside className="article-rail">
+          <TableOfContents headings={headings} />
+        </aside>
 
-      <article>
-        <h1 style={{ fontSize: 'clamp(1.7rem,4vw,2.5rem)', fontWeight: 800, color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>
-          {article.title}
-        </h1>
-        <div
-          className="job-description-html"
-          style={{ marginTop: 24, color: 'var(--text-primary)', lineHeight: 1.7 }}
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
-      </article>
-    </div>
+        <article className="article-main">
+          <nav aria-label="Breadcrumb" className="article-crumbs">
+            <Link href="/">Home</Link>
+            <span aria-hidden="true">/</span>
+            <Link href="/career-guide">Career Guide</Link>
+            <span aria-hidden="true">/</span>
+            <Link href={`/career-guide/${article.category}`}>{label}</Link>
+          </nav>
+
+          <header className="article-head">
+            <Link href={`/career-guide/${article.category}`} className="article-eyebrow">{label}</Link>
+            <h1 className="article-title">{article.title}</h1>
+            <p className="article-meta">
+              {article.publishedAt && <><time dateTime={article.publishedAt}>{formatDate(article.publishedAt)}</time><span aria-hidden="true"> · </span></>}
+              <span>{readingMinutes} min read</span>
+              <span aria-hidden="true"> · </span>
+              <span>By {article.author || 'English Jobs Germany'}</span>
+            </p>
+          </header>
+
+          <div
+            className="article-content"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+
+          <ArticleShare url={pageUrl} title={article.title} />
+
+          <section className="article-cta" aria-labelledby="cta-heading">
+            <h2 id="cta-heading" className="article-cta__title">
+              Looking for English-speaking jobs in Germany?
+            </h2>
+            <p className="article-cta__body">
+              Browse 2,000+ verified roles — no German required. Every listing is checked before it goes live.
+            </p>
+            <div className="article-cta__actions">
+              <Link href="/jobs" className="article-btn article-btn--primary">Browse Jobs</Link>
+              <Link href="/signup" className="article-btn article-btn--ghost">Create Free Account</Link>
+            </div>
+          </section>
+
+          {related.length > 0 && (
+            <section className="article-related" aria-labelledby="related-heading">
+              <h2 id="related-heading" className="article-related__title">More from {label}</h2>
+              <div className="article-related__grid">
+                {related.map((a) => (
+                  <Link
+                    key={a._id}
+                    href={`/career-guide/${a.category}/${a.slug}`}
+                    className="article-card"
+                  >
+                    <span className="article-card__badge">{label}</span>
+                    <span className="article-card__title">{a.title}</span>
+                    {a.description && <span className="article-card__desc">{a.description}</span>}
+                    <span className="article-card__more">Read guide →</span>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+        </article>
+      </div>
+    </>
   );
 }

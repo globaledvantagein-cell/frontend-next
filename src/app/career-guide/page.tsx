@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { fetchPublishedArticles, SITE_URL } from '@/lib/serverApi';
 import { CAREER_GUIDE_CATEGORIES, careerCategoryLabel } from '@/data/careerGuide';
+import { estimateReadingMinutes } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 
 // ISR: articles change rarely, so cache the page and revalidate hourly. The
@@ -16,6 +17,11 @@ export const metadata: Metadata = {
   alternates: { canonical: '/career-guide' },
 };
 
+function formatDate(value?: string | null): string {
+  if (!value) return '';
+  return new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 export default async function CareerGuideHub() {
   const articles = await fetchPublishedArticles(3600);
   const counts = new Map<string, number>();
@@ -25,7 +31,7 @@ export default async function CareerGuideHub() {
     .slice(0, 6);
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: 'clamp(20px,4vw,40px) clamp(16px,3vw,24px)' }}>
+    <div className="guide-hub">
       <JsonLd
         data={breadcrumbJsonLd([
           { name: 'Home', url: `${SITE_URL}/` },
@@ -33,60 +39,46 @@ export default async function CareerGuideHub() {
         ])}
       />
 
-      <h1 style={{ fontSize: 'clamp(1.6rem,4vw,2.4rem)', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-        Germany Career Guide
-      </h1>
-      <p style={{ color: 'var(--text-secondary)', marginTop: 10, fontSize: '1rem', maxWidth: 640 }}>
-        Practical guides on finding English-speaking jobs in Germany — visas, salaries, companies, and settling in.
-      </p>
+      <header className="guide-hero">
+        <span className="guide-hero__eyebrow">Career Guide</span>
+        <h1 className="guide-hero__title">Working in Germany, in English</h1>
+        <p className="guide-hero__lede">
+          Practical, no-nonsense guides on landing an English-speaking job in Germany — visas,
+          salaries, companies, and everything about settling in. Written for internationals.
+        </p>
+      </header>
 
-      <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', margin: '32px 0 14px' }}>
-        Categories
-      </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 }}>
-        {CAREER_GUIDE_CATEGORIES.map((slug) => (
-          <Link
-            key={slug}
-            href={`/career-guide/${slug}`}
-            style={{
-              display: 'block',
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              padding: '16px 18px',
-              textDecoration: 'none',
-              color: 'inherit',
-            }}
-          >
-            <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{careerCategoryLabel(slug)}</span>
-            <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-              {counts.get(slug) || 0} {(counts.get(slug) || 0) === 1 ? 'guide' : 'guides'}
-            </span>
-          </Link>
-        ))}
-      </div>
+      <section aria-labelledby="cats-heading">
+        <h2 id="cats-heading" className="guide-section-title">Browse by topic</h2>
+        <div className="guide-cat-grid">
+          {CAREER_GUIDE_CATEGORIES.map((slug) => {
+            const n = counts.get(slug) || 0;
+            return (
+              <Link key={slug} href={`/career-guide/${slug}`} className="guide-cat">
+                <span className="guide-cat__name">{careerCategoryLabel(slug)}</span>
+                <span className="guide-cat__count">{n} {n === 1 ? 'guide' : 'guides'}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
 
       {latest.length > 0 && (
-        <section style={{ marginTop: 40 }}>
-          <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>
-            Latest articles
-          </h2>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <section aria-labelledby="latest-heading" className="guide-latest">
+          <h2 id="latest-heading" className="guide-section-title">Latest articles</h2>
+          <div className="guide-article-grid">
             {latest.map((a) => (
-              <li key={a._id}>
-                <Link
-                  href={`/career-guide/${a.category}/${a.slug}`}
-                  style={{ color: 'var(--text-primary)', fontWeight: 600, textDecoration: 'none' }}
-                >
-                  {a.title}
-                </Link>
-                <span style={{ display: 'block', fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                  {careerCategoryLabel(a.category)}
-                  {a.description ? ` — ${a.description}` : ''}
+              <Link key={a._id} href={`/career-guide/${a.category}/${a.slug}`} className="article-card">
+                <span className="article-card__badge">{careerCategoryLabel(a.category)}</span>
+                <span className="article-card__title">{a.title}</span>
+                {a.description && <span className="article-card__desc">{a.description}</span>}
+                <span className="guide-article-card__meta">
+                  {a.publishedAt && <>{formatDate(a.publishedAt)}<span aria-hidden="true"> · </span></>}
+                  {estimateReadingMinutes(a.content)} min read
                 </span>
-              </li>
+              </Link>
             ))}
-          </ul>
+          </div>
         </section>
       )}
     </div>
