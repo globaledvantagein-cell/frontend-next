@@ -38,11 +38,12 @@ export {
   type FilterDropdownOption,
 } from './jobFilterTypes';
 
-export function useJobFilters(initialCompany?: string) {
+export function useJobFilters(initialCompany?: string, initialSearch?: string) {
   const initialState = useMemo<FilterState>(() => ({
     ...DEFAULT_FILTERS,
     company: initialCompany ? [initialCompany] : [],
-  }), [initialCompany]);
+    search: initialSearch || DEFAULT_FILTERS.search,
+  }), [initialCompany, initialSearch]);
 
   // UI state — updates immediately
   const [filters, setFiltersInternal] = useState<FilterState>(initialState);

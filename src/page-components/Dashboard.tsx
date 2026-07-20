@@ -19,6 +19,7 @@ import { useDeepLinkJob } from '../hooks/useDeepLinkJob';
 export default function Dashboard() {
   const [searchParams] = useSearchParams();
   const companyParam    = searchParams.get('company');
+  const searchParam     = searchParams.get('search');
   const deepLinkedJobId = searchParams.get('id');
 
   const {
@@ -26,7 +27,7 @@ export default function Dashboard() {
     companyOptions, categoryOptions,
     jobs, setJobs, totalJobs, hasMore,
     loading, loadingMore, loadMore, updateJob,
-  } = useJobFilters(companyParam || undefined);
+  } = useJobFilters(companyParam || undefined, searchParam || undefined);
 
   const { isApplied } = useAppliedJobs();
 
