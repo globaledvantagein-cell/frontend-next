@@ -8,6 +8,7 @@ import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 import ReadingProgress from '@/components/ReadingProgress';
 import TableOfContents from '@/components/TableOfContents';
 import ArticleShare from '@/components/ArticleShare';
+import ArticleCta from '@/components/ArticleCta';
 
 export const dynamic = 'force-dynamic';
 
@@ -111,18 +112,7 @@ export default async function CareerGuideArticle({ params }: Params) {
 
           <ArticleShare url={pageUrl} title={article.title} />
 
-          <section className="article-cta" aria-labelledby="cta-heading">
-            <h2 id="cta-heading" className="article-cta__title">
-              Looking for English-speaking jobs in Germany?
-            </h2>
-            <p className="article-cta__body">
-              Browse 2,000+ verified roles — no German required. Every listing is checked before it goes live.
-            </p>
-            <div className="article-cta__actions">
-              <Link href="/jobs" className="article-btn article-btn--primary">Browse Jobs</Link>
-              <Link href="/signup" className="article-btn article-btn--ghost">Create Free Account</Link>
-            </div>
-          </section>
+          <ArticleCta />
 
           {related.length > 0 && (
             <section className="article-related" aria-labelledby="related-heading">
