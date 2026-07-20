@@ -8,11 +8,10 @@ const linkStyle: React.CSSProperties = {
 };
 const sep: React.CSSProperties = { color: 'var(--border-strong)', fontSize: '0.7rem', userSelect: 'none' };
 
-// Placeholder URLs — replace with the real handles.
 const SOCIALS: ReadonlyArray<{ label: string; href: string; Icon: typeof Linkedin }> = [
-  { label: 'LinkedIn', href: 'https://linkedin.com/company/english-jobs-germany', Icon: Linkedin },
-  { label: 'X',        href: 'https://x.com/englishjobsde',                        Icon: Twitter },
-  { label: 'WhatsApp', href: 'https://whatsapp.com/channel/englishjobsgermany',    Icon: MessageCircle },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/english-jobs-in-germany', Icon: Linkedin },
+  { label: 'X',        href: 'https://x.com/EngJobsgermany',                              Icon: Twitter },
+  { label: 'WhatsApp', href: 'https://whatsapp.com/channel/0029VbCqyMl8vd1RyrdNQw11',    Icon: MessageCircle },
 ];
 
 // Only transform + color transition — never `all`. Icons are a low-frequency
