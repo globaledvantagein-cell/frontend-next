@@ -48,7 +48,20 @@ export const DesktopJobCard = memo(
             <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
               {applied && <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>✓ Applied</Badge>}
               {showWp && <Badge variant="blue"  style={{ fontSize: '0.68rem', padding: '2px 8px' }}>{wp}</Badge>}
-              {salary && <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>{salary}</Badge>}
+              {salary && (
+                <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  {job.filterSalaryTier && (
+                    <span
+                      title={job.filterSalaryTier === 'ats' ? 'Salary provided by employer' : 'Salary found in job description'}
+                      style={{
+                        width: 5, height: 5, borderRadius: '50%', flexShrink: 0, cursor: 'help',
+                        background: job.filterSalaryTier === 'ats' ? '#16a34a' : '#3b82f6',
+                      }}
+                    />
+                  )}
+                  {salary}
+                </Badge>
+              )}
             </div>
           )}
         </button>

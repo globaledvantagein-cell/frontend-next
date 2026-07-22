@@ -237,8 +237,12 @@ export default function Dashboard() {
       {/* Hero removed — filters are the first thing visible */}
       <div ref={heroRef} style={{ display: 'none' }} />
 
-      <Container style={{ padding: '10px 24px 0', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        <div ref={filtersRef} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, marginBottom: 10, flexShrink: 0 }}>
+      {/* maxWidth 1800 (not the default xl 1200) so the split-grid's own
+          max-width rules — 1600px @1440, 1800px @1920 (globals.css) — are no
+          longer clipped by the Container. Overriding here keeps Container.tsx
+          untouched for other pages. */}
+      <Container style={{ maxWidth: '1800px', padding: '10px 24px 0', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        <div ref={filtersRef} style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', padding: 10, marginBottom: 10, flexShrink: 0 }}>
           <DashboardFilterBar
             filters={filters} setFilters={setFilters}
             companyOptions={companyOptions} categoryOptions={categoryOptions}
@@ -261,7 +265,7 @@ export default function Dashboard() {
           />
         )}
 
-        <div ref={splitViewRef} className="split-grid" style={{ gap: 10, flex: 1, minHeight: 0, height: desktopSplitHeight }}>
+        <div ref={splitViewRef} className="split-grid" style={{ gap: 8, flex: 1, minHeight: 0, height: desktopSplitHeight }}>
           <section
             ref={listPanelRef}
             className="thin-scroll"
@@ -272,7 +276,7 @@ export default function Dashboard() {
             }}
           >
             {loading ? skeletons : (
-              <div className="flex flex-col" style={{ gap: 6, padding: '8px 8px' }}>
+              <div className="flex flex-col" style={{ gap: 6, padding: '4px 4px' }}>
                 {jobs.length === 0 ? emptyState : (
                   <>
                     {jobs.map(job => (

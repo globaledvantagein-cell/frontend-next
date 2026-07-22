@@ -8,7 +8,10 @@
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from './ui';
 import { FILTER_CONTROL_STYLE, type FilterState, type FilterDropdownOption } from '../hooks/useJobFilters';
-import { SortSelect, FilterSelects } from './filters/jobFilterSelects';
+import { SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs } from './filters/jobFilterSelects';
+
+// Thin visual separator between filter groups (dropdowns | toggles | salary).
+const groupDivider = <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />;
 
 interface FilterBarProps {
   filters: FilterState;
@@ -40,6 +43,8 @@ export function DashboardFilterBar({
   onOpenFilterSheet,
 }: FilterBarProps) {
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
+  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown };
+  const toggleProps = { filters, setFilters };
 
   const searchInput = (
     <div className="relative" style={{ flex: 1, minWidth: 0 }}>
@@ -113,6 +118,12 @@ export function DashboardFilterBar({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <FilterSelects {...selectsProps} />
+            <AttributeSelects {...dropdownProps} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <ToggleChips {...toggleProps} />
+            {groupDivider}
+            <SalaryRangeInputs {...toggleProps} />
             <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               {countLabel}{clearAll}
             </div>
@@ -122,20 +133,32 @@ export function DashboardFilterBar({
 
       {/* Desktop */}
       <div className="filter-bar-full">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div className="relative" style={{ flex: 1, minWidth: 180, maxWidth: 300 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            <Input
-              value={filters.search}
-              onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              placeholder="Search jobs..."
-              style={{ ...FILTER_CONTROL_STYLE, width: '100%', paddingLeft: 32, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
-            />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Row 1 — search, sort, primary dropdowns, count/clear */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className="relative" style={{ flex: 1, minWidth: 180, maxWidth: 300 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+              <Input
+                value={filters.search}
+                onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                placeholder="Search jobs..."
+                style={{ ...FILTER_CONTROL_STYLE, width: '100%', paddingLeft: 32, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
+              />
+            </div>
+            <SortSelect {...selectsProps} width={150} />
+            <FilterSelects {...selectsProps} />
+            <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+              {countLabel}{clearAll}
+            </div>
           </div>
-          <SortSelect {...selectsProps} width={120} />
-          <FilterSelects {...selectsProps} />
-          <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            {countLabel}{clearAll}
+          {/* Row 2 — attribute dropdowns | toggles | salary. Tighter gap (5 vs
+              row 1's 6) marks it as the secondary refinement row. Wraps when narrow. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+            <AttributeSelects {...dropdownProps} />
+            {groupDivider}
+            <ToggleChips {...toggleProps} />
+            {groupDivider}
+            <SalaryRangeInputs {...toggleProps} />
           </div>
         </div>
       </div>
@@ -171,6 +194,9 @@ export function MobileFilterSheet({
   onClose,
 }: MobileFilterSheetProps) {
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
+  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown };
+  const toggleProps = { filters, setFilters };
+  const sectionLabelStyle = { fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4, marginBottom: 2 };
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200 }}>
@@ -193,9 +219,21 @@ export function MobileFilterSheet({
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>Sort by</div>
           <SortSelect {...selectsProps} width="100%" />
-          <div style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginTop: 4, marginBottom: 2 }}>Filter by</div>
+          <div style={sectionLabelStyle}>Filter by</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <FilterSelects {...selectsProps} widthOverride="100%" />
+          </div>
+
+          <div style={sectionLabelStyle}>More filters</div>
+          {/* 1-column: the attribute labels are long and cramp in 2 columns */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <AttributeSelects {...dropdownProps} widthOverride="100%" />
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <ToggleChips {...toggleProps} />
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <SalaryRangeInputs {...toggleProps} stretch />
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>

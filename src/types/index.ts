@@ -20,7 +20,6 @@ export interface IJob {
   SalaryMin: number | null;
   SalaryMax: number | null;
   SalaryInterval: string | null;
-  ATSPlatform: string;
   AllLocations: string[];
   EmploymentType: string | null;
   Country: string | null;
@@ -30,11 +29,31 @@ export interface IJob {
   Tags: string[];
   isEntryLevel: boolean;
   ContractType?: string;
-  sourceSite?: string;
-  Status?: 'pending_review' | 'active' | 'rejected';
-  ConfidenceScore: number;
   applyClicks: number;
   scrapedAt?: string;
+
+  // Canonical reconciled filter fields (backend Chunk 1 normalizer).
+  filterWorkplace: 'remote' | 'hybrid' | 'onsite' | null;
+  filterExperience: 'entry' | 'mid' | 'senior' | 'lead' | 'executive' | null;
+  filterEmployment: 'fulltime' | 'parttime' | 'contract' | 'internship' | null;
+  filterVisa: 'available' | null;
+  filterRelocation: 'available' | null;
+  filterSalaryMin: number | null;
+  filterSalaryMax: number | null;
+  filterSalaryCurrency: string | null;
+  filterSalaryInterval: string | null;
+  filterSalaryTier: 'ats' | 'jd' | null;
+}
+
+/**
+ * Admin/internal job shape. The public API strips these fields (data lockdown,
+ * backend Chunk 1), so they live here — only admin/review views may read them.
+ */
+export interface IAdminJob extends IJob {
+  ATSPlatform: string;
+  sourceSite?: string;
+  ConfidenceScore: number;
+  Status?: 'pending_review' | 'active' | 'rejected';
   RejectionReason?: string;
 }
 

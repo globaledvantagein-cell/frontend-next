@@ -19,6 +19,7 @@ import { apiGet, apiGetCached } from '../utils/jobApi';
 import {
   PAGE_SIZE,
   SEARCH_DEBOUNCE_MS,
+  SALARY_DEBOUNCE_MS,
   DEFAULT_FILTERS,
   buildSearchParams,
   type FilterState,
@@ -181,9 +182,15 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
       setFiltersInternal(prev => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
         const searchChanged = next.search !== prev.search;
+        const salaryChanged =
+          next.salaryMin !== prev.salaryMin || next.salaryMax !== prev.salaryMax;
 
+        // Only free-text inputs are debounced. Salary debounces slower than
+        // search; everything else (dropdowns, chips) commits immediately.
         if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-        if (searchChanged) {
+        if (salaryChanged) {
+          searchTimerRef.current = setTimeout(() => setCommittedFilters(next), SALARY_DEBOUNCE_MS);
+        } else if (searchChanged) {
           searchTimerRef.current = setTimeout(() => setCommittedFilters(next), SEARCH_DEBOUNCE_MS);
         } else {
           setCommittedFilters(next);
@@ -195,7 +202,13 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
   );
 
   const clearFilters = useCallback(() => {
-    setFilters(prev => ({ ...prev, company: [], category: [], date: 'All', search: '' }));
+    setFilters(prev => ({
+      ...prev,
+      company: [], category: [], date: 'All', search: '',
+      workplace: [], experience: [], employment: [],
+      visa: false, relocation: false, hasSalary: false,
+      salaryMin: '', salaryMax: '',
+    }));
   }, [setFilters]);
 
   const updateJob = useCallback((jobId: string, updates: Partial<IJob>) => {
@@ -206,19 +219,35 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
 
   const hasActiveFilters = useMemo(
     () =>
-      filters.search.trim() !== ''  ||
-      filters.company.length > 0    ||
-      filters.category.length > 0   ||
-      filters.date !== 'All',
+      filters.search.trim() !== ''   ||
+      filters.company.length > 0     ||
+      filters.category.length > 0    ||
+      filters.date !== 'All'         ||
+      filters.workplace.length > 0   ||
+      filters.experience.length > 0  ||
+      filters.employment.length > 0  ||
+      filters.visa                   ||
+      filters.relocation             ||
+      filters.hasSalary              ||
+      filters.salaryMin.trim() !== '' ||
+      filters.salaryMax.trim() !== '',
     [filters],
   );
 
   const activeFilterCount = useMemo(
     () =>
-      (filters.search.trim()       ? 1 : 0) +
-      (filters.company.length > 0  ? 1 : 0) +
-      (filters.category.length > 0 ? 1 : 0) +
-      (filters.date !== 'All'      ? 1 : 0),
+      (filters.search.trim()        ? 1 : 0) +
+      (filters.company.length > 0   ? 1 : 0) +
+      (filters.category.length > 0  ? 1 : 0) +
+      (filters.date !== 'All'       ? 1 : 0) +
+      (filters.workplace.length > 0 ? 1 : 0) +
+      (filters.experience.length > 0 ? 1 : 0) +
+      (filters.employment.length > 0 ? 1 : 0) +
+      (filters.visa                 ? 1 : 0) +
+      (filters.relocation           ? 1 : 0) +
+      (filters.hasSalary            ? 1 : 0) +
+      (filters.salaryMin.trim()     ? 1 : 0) +
+      (filters.salaryMax.trim()     ? 1 : 0),
     [filters],
   );
 
