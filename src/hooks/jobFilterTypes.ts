@@ -100,6 +100,18 @@ export interface FilterDropdownOption {
   label: string;
 }
 
+/** Shape of GET /api/jobs/filter-counts — live facet totals for the badges. */
+export interface IFacetCounts {
+  workplace: Record<string, number>;
+  experience: Record<string, number>;
+  employment: Record<string, number>;
+  visa: { available: number };
+  relocation: { available: number };
+  hasSalary: { count: number };
+  category: Record<string, number>;
+  totalJobs: number;
+}
+
 export function buildSearchParams(filters: FilterState, page: number): URLSearchParams {
   const p = new URLSearchParams();
   p.set('page',  String(page));

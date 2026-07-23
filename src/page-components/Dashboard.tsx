@@ -24,7 +24,7 @@ export default function Dashboard() {
 
   const {
     filters, setFilters, clearFilters, hasActiveFilters, activeFilterCount,
-    companyOptions, categoryOptions,
+    companyOptions, categoryOptions, facetCounts,
     jobs, setJobs, totalJobs, hasMore,
     loading, loadingMore, loadMore, updateJob,
   } = useJobFilters(companyParam || undefined, searchParam || undefined);
@@ -246,6 +246,7 @@ export default function Dashboard() {
           <DashboardFilterBar
             filters={filters} setFilters={setFilters}
             companyOptions={companyOptions} categoryOptions={categoryOptions}
+            facetCounts={facetCounts}
             filteredCount={jobs.length} totalCount={totalJobs}
             hasActiveFilters={hasActiveFilters} activeFilterCount={activeFilterCount}
             clearFilters={clearFilters}
@@ -258,6 +259,7 @@ export default function Dashboard() {
           <MobileFilterSheet
             filters={filters} setFilters={setFilters}
             companyOptions={companyOptions} categoryOptions={categoryOptions}
+            facetCounts={facetCounts}
             filteredCount={jobs.length}
             hasActiveFilters={hasActiveFilters} clearFilters={clearFilters}
             openDropdown={openDropdown} setOpenDropdown={setOpenDropdown}

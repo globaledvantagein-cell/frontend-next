@@ -19,7 +19,18 @@ import {
   EXPERIENCE_OPTIONS,
   EMPLOYMENT_OPTIONS,
   FILTER_CONTROL_STYLE,
+  type IFacetCounts,
 } from '../../hooks/jobFilterTypes';
+
+// Append "(N)" to each option label when live facet counts are available.
+// Counts are unfiltered totals — users see what's out there before clicking.
+function withCounts(
+  options: readonly { value: string; label: string }[],
+  counts?: Record<string, number>,
+): FilterDropdownOption[] {
+  if (!counts) return options as unknown as FilterDropdownOption[];
+  return options.map(o => ({ ...o, label: `${o.label} (${counts[o.value] ?? 0})` }));
+}
 
 export interface SelectsProps {
   filters: FilterState;
@@ -109,15 +120,15 @@ export function FilterSelects({
  * from FilterSelects so the desktop layout can place them on their own row.
  */
 export function AttributeSelects({
-  filters, setFilters, openDropdown, setOpenDropdown, widthOverride,
-}: DropdownProps & { widthOverride?: number | string }) {
+  filters, setFilters, openDropdown, setOpenDropdown, widthOverride, facetCounts,
+}: DropdownProps & { widthOverride?: number | string; facetCounts?: IFacetCounts | null }) {
   return (
     <>
       <FilterDropdown
         id="workplace"
         label="Workplace"
         value=""
-        options={WORKPLACE_OPTIONS as unknown as FilterDropdownOption[]}
+        options={withCounts(WORKPLACE_OPTIONS, facetCounts?.workplace)}
         onChange={() => {}}
         multiSelect
         selectedValues={filters.workplace}
@@ -132,7 +143,7 @@ export function AttributeSelects({
         id="experience"
         label="Experience"
         value=""
-        options={EXPERIENCE_OPTIONS as unknown as FilterDropdownOption[]}
+        options={withCounts(EXPERIENCE_OPTIONS, facetCounts?.experience)}
         onChange={() => {}}
         multiSelect
         selectedValues={filters.experience}
@@ -147,7 +158,7 @@ export function AttributeSelects({
         id="employment"
         label="Employment"
         value=""
-        options={EMPLOYMENT_OPTIONS as unknown as FilterDropdownOption[]}
+        options={withCounts(EMPLOYMENT_OPTIONS, facetCounts?.employment)}
         onChange={() => {}}
         multiSelect
         selectedValues={filters.employment}
@@ -166,49 +177,57 @@ export function AttributeSelects({
  * FilterDropdown trigger, dot included); inactive → neutral trigger look.
  */
 export function ToggleChip({
-  label, active, onToggle,
-}: { label: string; active: boolean; onToggle: () => void }) {
+  label, active, onToggle, count,
+}: { label: string; active: boolean; onToggle: () => void; count?: number }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={active}
+      className="filter-pill"
       style={{
-        // Lighter than the dropdowns (10px vs their 10/28 chevron padding) so
-        // chips read as secondary refinements, not primary selects.
-        height: 34, padding: '0 10px', borderRadius: 8, fontSize: '0.76rem',
+        // Dim (but keep clickable) when we know the count is zero.
+        opacity: count === 0 && !active ? 0.5 : 1,
+        height: 34, padding: '0 12px', fontSize: '0.76rem',
         cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
         whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'inherit',
         border: active ? '1.5px solid var(--acid)' : '1px solid var(--border)',
         background: active ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
         color: active ? 'var(--acid)' : 'var(--text-secondary)',
         fontWeight: active ? 600 : 400,
-        transition: 'background 0.18s, border-color 0.18s, color 0.18s',
       }}
     >
       {active && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--acid)', flexShrink: 0 }} />}
       {label}
+      {count != null && (
+        <span style={{ fontSize: '0.68rem', color: active ? 'var(--acid)' : 'var(--text-muted)', fontWeight: 400 }}>
+          {count}
+        </span>
+      )}
     </button>
   );
 }
 
 /** The three boolean job-attribute toggles: visa, relocation, has-salary. */
-export function ToggleChips({ filters, setFilters }: ToggleProps) {
+export function ToggleChips({ filters, setFilters, facetCounts }: ToggleProps & { facetCounts?: IFacetCounts | null }) {
   return (
     <>
       <ToggleChip
         label="Visa sponsor"
         active={filters.visa}
+        count={facetCounts?.visa.available}
         onToggle={() => setFilters(prev => ({ ...prev, visa: !prev.visa }))}
       />
       <ToggleChip
         label="Relocation"
         active={filters.relocation}
+        count={facetCounts?.relocation.available}
         onToggle={() => setFilters(prev => ({ ...prev, relocation: !prev.relocation }))}
       />
       <ToggleChip
         label="Has salary"
         active={filters.hasSalary}
+        count={facetCounts?.hasSalary.count}
         onToggle={() => setFilters(prev => ({ ...prev, hasSalary: !prev.hasSalary }))}
       />
     </>
@@ -220,45 +239,61 @@ export function ToggleChips({ filters, setFilters }: ToggleProps) {
  * debounces the commit at 800ms. When `stretch` is set the pair fills its row
  * (used in the mobile sheet); otherwise each input is a compact 90px.
  */
+// type=number still accepts 'e', 'E', '+', '-' (valid scientific/sign chars) —
+// meaningless for a salary, so block them at the keystroke.
+function blockNonNumericKeys(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+}
+
 export function SalaryRangeInputs({
   filters, setFilters, stretch = false,
 }: ToggleProps & { stretch?: boolean }) {
-  const base = {
+  const min = parseInt(filters.salaryMin, 10);
+  const max = parseInt(filters.salaryMax, 10);
+  // min>max is silently dropped by the API — surface it instead of confusing
+  // the user with "nothing changed".
+  const invalidRange = Number.isFinite(min) && Number.isFinite(max) && min > max;
+  const active = filters.salaryMin.trim() !== '' || filters.salaryMax.trim() !== '';
+
+  const inputStyle: React.CSSProperties = {
     ...FILTER_CONTROL_STYLE,
-    width: stretch ? '100%' : 90,
+    border: 'none', background: 'transparent', height: 30,
+    width: stretch ? '100%' : 74, padding: '0 6px',
+    color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
   };
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 5, flex: stretch ? 1 : undefined }}>
-      {/* Tiny group label so the two number fields don't read as orphaned.
-          Hidden in the stretched mobile-sheet layout (it has its own heading). */}
-      {!stretch && (
-        <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>
-          Salary
-        </span>
-      )}
+    // One bordered group so Min/Max read as a single "salary range" control,
+    // not two orphaned number fields. Border echoes the active/invalid state.
+    <div
+      className="filter-pill"
+      title={invalidRange ? 'Min salary is higher than max — this range is ignored' : 'Yearly salary range (EUR)'}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 0,
+        height: 34, paddingInline: 10,
+        flex: stretch ? 1 : undefined, flexShrink: 0,
+        border: invalidRange ? '1.5px solid var(--danger)' : active ? '1.5px solid var(--acid)' : '1px solid var(--border)',
+        background: active && !invalidRange ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
+        transition: 'border-color 0.18s, background 0.18s',
+      }}
+    >
+      <span style={{ fontSize: '0.76rem', color: invalidRange ? 'var(--danger)' : active ? 'var(--acid)' : 'var(--text-muted)', flexShrink: 0 }}>€</span>
       <input
-        type="number"
-        inputMode="numeric"
-        min={0}
-        max={1000000}
-        step={1000}
+        type="number" inputMode="numeric" min={0} max={1000000} step={1000}
         value={filters.salaryMin}
         onChange={e => setFilters(prev => ({ ...prev, salaryMin: e.target.value }))}
-        placeholder="Min €"
-        aria-label="Minimum salary"
-        style={{ ...base, borderColor: filters.salaryMin.trim() ? 'var(--acid)' : undefined }}
+        onKeyDown={blockNonNumericKeys}
+        placeholder="Min" aria-label="Minimum yearly salary" aria-invalid={invalidRange}
+        style={inputStyle}
       />
+      <span style={{ color: 'var(--text-muted)', fontSize: '0.76rem', flexShrink: 0 }}>–</span>
       <input
-        type="number"
-        inputMode="numeric"
-        min={0}
-        max={1000000}
-        step={1000}
+        type="number" inputMode="numeric" min={0} max={1000000} step={1000}
         value={filters.salaryMax}
         onChange={e => setFilters(prev => ({ ...prev, salaryMax: e.target.value }))}
-        placeholder="Max €"
-        aria-label="Maximum salary"
-        style={{ ...base, borderColor: filters.salaryMax.trim() ? 'var(--acid)' : undefined }}
+        onKeyDown={blockNonNumericKeys}
+        placeholder="Max" aria-label="Maximum yearly salary" aria-invalid={invalidRange}
+        style={inputStyle}
       />
     </div>
   );

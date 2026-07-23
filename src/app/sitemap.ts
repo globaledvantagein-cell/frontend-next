@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { CANONICAL_CITIES } from '@/data/cities';
 import { CATEGORY_ORDER } from '@/utils/categorize';
 import { CAREER_GUIDE_CATEGORIES } from '@/data/careerGuide';
-import { fetchPublishedArticles, SITE_URL } from '@/lib/serverApi';
+import { fetchPublishedArticles, fetchJobs, SITE_URL } from '@/lib/serverApi';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +38,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.6,
       lastModified: a.updatedAt || a.publishedAt ? new Date(a.updatedAt || a.publishedAt!) : now,
     });
+  }
+
+  // Individual job pages — the highest-value SEO URLs. The API caps limit at
+  // 100 per page, so pull the 1000 newest in parallel pages; failures degrade
+  // to fewer entries rather than breaking the sitemap.
+  const pages = await Promise.all(
+    Array.from({ length: 10 }, (_, i) => fetchJobs({ limit: 100, page: i + 1 }).catch(() => ({ jobs: [] }))),
+  );
+  for (const p of pages) {
+    for (const job of p.jobs || []) {
+      entries.push({
+        url: `${SITE_URL}/jobs/${job._id}`,
+        changeFrequency: 'weekly',
+        priority: 0.6,
+        lastModified: job.PostedDate ? new Date(job.PostedDate) : now,
+      });
+    }
   }
 
   return entries;

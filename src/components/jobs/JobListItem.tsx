@@ -21,8 +21,13 @@ interface DesktopProps {
 export const DesktopJobCard = memo(
   forwardRef<HTMLButtonElement, DesktopProps>(function DesktopJobCard({ job, selected, applied, onClick }, ref) {
     const salary = compactSalary(job);
-    const wp = normalizeWorkplace(job.WorkplaceType);
+    // Canonical filter field first (backend-reconciled), legacy field fallback.
+    const wp = job.filterWorkplace
+      ? job.filterWorkplace.charAt(0).toUpperCase() + job.filterWorkplace.slice(1)
+      : normalizeWorkplace(job.WorkplaceType);
     const showWp = wp === 'Remote' || wp === 'Hybrid';
+    const hasVisa = job.filterVisa === 'available';
+    const hasRelocation = job.filterRelocation === 'available';
 
     // The bookmark sits OUTSIDE the card button — a button inside a button is
     // invalid HTML and swallows the inner click.
@@ -44,10 +49,12 @@ export const DesktopJobCard = memo(
           <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {job.Company} | {getDisplayLocation(job)}
           </p>
-          {(showWp || salary || applied) && (
+          {(showWp || salary || applied || hasVisa || hasRelocation) && (
             <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
               {applied && <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>✓ Applied</Badge>}
               {showWp && <Badge variant="blue"  style={{ fontSize: '0.68rem', padding: '2px 8px' }}>{wp}</Badge>}
+              {hasVisa && <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>Visa</Badge>}
+              {hasRelocation && <Badge variant="neutral" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>Relocation</Badge>}
               {salary && (
                 <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   {job.filterSalaryTier && (
@@ -91,7 +98,13 @@ export const MobileJobCard = memo(function MobileJobCard({ job, applied, onClick
         <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3, paddingRight: 26 }}>{job.JobTitle}</p>
         <p style={{ fontSize: '0.77rem', color: 'var(--text-muted)', marginTop: 4 }}>{job.Company} · {getDisplayLocation(job)}</p>
         <p style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 3 }}>{relativeDate(job.PostedDate || job.scrapedAt)}</p>
-        {applied && <Badge variant="green" style={{ fontSize: '0.65rem', padding: '1px 6px', marginTop: 6 }}>✓ Applied</Badge>}
+        {(applied || job.filterVisa === 'available' || job.filterRelocation === 'available') && (
+          <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
+            {applied && <Badge variant="green" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>✓ Applied</Badge>}
+            {job.filterVisa === 'available' && <Badge variant="green" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Visa</Badge>}
+            {job.filterRelocation === 'available' && <Badge variant="neutral" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Relocation</Badge>}
+          </div>
+        )}
       </button>
       <SaveJobButton jobId={job._id} style={{ position: 'absolute', top: 10, right: 8 }} />
     </div>

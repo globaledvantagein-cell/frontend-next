@@ -24,6 +24,7 @@ import {
   buildSearchParams,
   type FilterState,
   type FilterDropdownOption,
+  type IFacetCounts,
 } from './jobFilterTypes';
 
 // Re-export so existing imports keep working.
@@ -65,6 +66,10 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
   const [categoryOptions, setCategoryOptions] = useState<FilterDropdownOption[]>(
     CATEGORY_ORDER.map(cat => ({ value: cat, label: CATEGORY_LABELS[cat] })),
   );
+
+  // Live facet totals for the "(N)" badges on filter options. Unfiltered
+  // totals, cached like the other dropdown bootstraps — null until loaded.
+  const [facetCounts, setFacetCounts] = useState<IFacetCounts | null>(null);
 
   // Internal refs
   const abortRef       = useRef<AbortController | null>(null);
@@ -109,6 +114,20 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
         );
       })
       .catch(() => {});
+
+    apiGetCached<IFacetCounts>('/api/jobs/filter-counts', {
+      signal: ctrl.signal, noAuth: true,
+      memoryTtlMs: 10 * 60 * 1000, localTtlMs: 10 * 60 * 1000,
+    })
+      .then(counts => {
+        // totalJobs === 0 almost always means the response was captured while
+        // the backend cache was still booting (and then cached client-side for
+        // 10 min) — showing "(0)" everywhere is worse than no badges.
+        if (counts && typeof counts === 'object' && counts.workplace && counts.totalJobs > 0) {
+          setFacetCounts(counts);
+        }
+      })
+      .catch(() => {}); // badges just don't render — non-critical
 
     return () => ctrl.abort();
   }, []);
@@ -267,5 +286,6 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
     updateJob,
     companyOptions,
     categoryOptions,
+    facetCounts,
   };
 }

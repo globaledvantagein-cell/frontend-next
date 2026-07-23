@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { fetchJobFull, SITE_URL } from '@/lib/serverApi';
 import JobSharePage from '@/page-components/JobSharePage';
+import JsonLd, { jobPostingJsonLd } from '@/components/seo/JsonLd';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,16 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 // The interactive detail (apply / share / save / gating) is fully client-side.
-// The server component above only supplies crawlable metadata + OG tags.
-export default function JobDetailRoute() {
-  return <JobSharePage />;
+// The server component supplies crawlable metadata, OG tags, and JobPosting
+// JSON-LD (Google for Jobs / AI answer-engine eligibility).
+export default async function JobDetailRoute({ params }: Params) {
+  const { id } = await params;
+  const res = await fetchJobFull(id);
+  const job = res?.job || res?.teaser;
+  return (
+    <>
+      {job && <JsonLd data={jobPostingJsonLd(job, SITE_URL)} />}
+      <JobSharePage />
+    </>
+  );
 }

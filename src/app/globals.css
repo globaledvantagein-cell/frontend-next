@@ -1088,6 +1088,26 @@ body::before {
   }
 }
 
+/* ── Filter pill: one control language for every filter control ── */
+/* Dropdown triggers, toggle chips, and the salary group all share this
+   shape so the bar reads as one system instead of mixed species. */
+.filter-pill {
+  border-radius: 999px !important;
+  transition:
+    transform 160ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+.filter-pill:active {
+  transform: scale(0.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  .filter-pill:active {
+    transform: none;
+  }
+}
+
 /* ── Filter bar responsive ───────────────────────────── */
 .filter-bar-full {
   display: none;

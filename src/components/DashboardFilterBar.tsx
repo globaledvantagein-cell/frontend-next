@@ -8,10 +8,11 @@
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from './ui';
 import { FILTER_CONTROL_STYLE, type FilterState, type FilterDropdownOption } from '../hooks/useJobFilters';
+import type { IFacetCounts } from '../hooks/jobFilterTypes';
 import { SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs } from './filters/jobFilterSelects';
 
-// Thin visual separator between filter groups (dropdowns | toggles | salary).
-const groupDivider = <div style={{ width: 1, height: 20, background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />;
+// Pill-shaped search field style — matches the .filter-pill control language.
+const searchPillStyle = { borderRadius: 999 } as const;
 
 interface FilterBarProps {
   filters: FilterState;
@@ -26,6 +27,7 @@ interface FilterBarProps {
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
   onOpenFilterSheet: () => void;
+  facetCounts?: IFacetCounts | null;
 }
 
 export function DashboardFilterBar({
@@ -41,10 +43,11 @@ export function DashboardFilterBar({
   openDropdown,
   setOpenDropdown,
   onOpenFilterSheet,
+  facetCounts,
 }: FilterBarProps) {
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
-  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown };
-  const toggleProps = { filters, setFilters };
+  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts };
+  const toggleProps = { filters, setFilters, facetCounts };
 
   const searchInput = (
     <div className="relative" style={{ flex: 1, minWidth: 0 }}>
@@ -53,7 +56,7 @@ export function DashboardFilterBar({
         value={filters.search}
         onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
         placeholder="Search jobs..."
-        style={{ ...FILTER_CONTROL_STYLE, width: '100%', paddingLeft: 32, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
+        style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, width: '100%', paddingLeft: 32, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
       />
     </div>
   );
@@ -64,21 +67,22 @@ export function DashboardFilterBar({
     </span>
   );
 
+  // Ghost text button — no border. One less box in an already bordered row;
+  // the danger hover color carries the meaning.
   const clearAll = hasActiveFilters ? (
     <button
       onClick={clearFilters}
+      className="filter-pill"
       style={{
-        height: 34, paddingInline: 12, borderRadius: 8,
-        border: '1px solid var(--border)',
-        background: 'var(--bg-surface-2)',
+        height: 34, paddingInline: 10,
+        border: 'none', background: 'transparent',
         color: 'var(--text-muted)',
         fontSize: '0.74rem', fontWeight: 500,
         cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-        whiteSpace: 'nowrap', flexShrink: 0,
-        transition: 'border-color 0.18s, color 0.18s',
+        whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'inherit',
       }}
-      onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--danger)'; e.currentTarget.style.color = 'var(--danger)'; }}
-      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
     >
       <X size={11} /> Clear all
     </button>
@@ -116,13 +120,10 @@ export function DashboardFilterBar({
             {searchInput}
             <SortSelect {...selectsProps} width={120} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 8, flexWrap: 'wrap' }}>
             <FilterSelects {...selectsProps} />
             <AttributeSelects {...dropdownProps} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <ToggleChips {...toggleProps} />
-            {groupDivider}
             <SalaryRangeInputs {...toggleProps} />
             <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
               {countLabel}{clearAll}
@@ -131,34 +132,27 @@ export function DashboardFilterBar({
         </div>
       </div>
 
-      {/* Desktop */}
+      {/* Desktop — one flowing row of pills. Search anchors the left, sort +
+          count + clear anchor the right; everything between wraps naturally.
+          No dividers: the uniform pill shape IS the grouping. */}
       <div className="filter-bar-full">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {/* Row 1 — search, sort, primary dropdowns, count/clear */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div className="relative" style={{ flex: 1, minWidth: 180, maxWidth: 300 }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-              <Input
-                value={filters.search}
-                onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                placeholder="Search jobs..."
-                style={{ ...FILTER_CONTROL_STYLE, width: '100%', paddingLeft: 32, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
-              />
-            </div>
-            <SortSelect {...selectsProps} width={150} />
-            <FilterSelects {...selectsProps} />
-            <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              {countLabel}{clearAll}
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 8, flexWrap: 'wrap' }}>
+          <div className="relative" style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}>
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <Input
+              value={filters.search}
+              onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+              placeholder="Search jobs..."
+              style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, width: '100%', paddingLeft: 34, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
+            />
           </div>
-          {/* Row 2 — attribute dropdowns | toggles | salary. Tighter gap (5 vs
-              row 1's 6) marks it as the secondary refinement row. Wraps when narrow. */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-            <AttributeSelects {...dropdownProps} />
-            {groupDivider}
-            <ToggleChips {...toggleProps} />
-            {groupDivider}
-            <SalaryRangeInputs {...toggleProps} />
+          <FilterSelects {...selectsProps} />
+          <AttributeSelects {...dropdownProps} />
+          <ToggleChips {...toggleProps} />
+          <SalaryRangeInputs {...toggleProps} />
+          <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <SortSelect {...selectsProps} width={140} />
+            {countLabel}{clearAll}
           </div>
         </div>
       </div>
@@ -179,6 +173,7 @@ interface MobileFilterSheetProps {
   openDropdown: string | null;
   setOpenDropdown: (id: string | null) => void;
   onClose: () => void;
+  facetCounts?: IFacetCounts | null;
 }
 
 export function MobileFilterSheet({
@@ -192,10 +187,11 @@ export function MobileFilterSheet({
   openDropdown,
   setOpenDropdown,
   onClose,
+  facetCounts,
 }: MobileFilterSheetProps) {
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
-  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown };
-  const toggleProps = { filters, setFilters };
+  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts };
+  const toggleProps = { filters, setFilters, facetCounts };
   const sectionLabelStyle = { fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4, marginBottom: 2 };
 
   return (
