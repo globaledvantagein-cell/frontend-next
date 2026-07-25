@@ -3,18 +3,13 @@
 /**
  * /premium — Premium checkout.
  *
- * IMPORTANT — the card form is a FAKE payment gateway. The card number, expiry,
- * CVV and cardholder name are UI-only: they feed local state purely for input
- * masking and are NEVER sent to any server, written to storage, or logged. The
- * only real payment path during beta is a 100%-off promo code, redeemed via the
- * Confirm button (POST /api/auth/redeem-promo).
+ * During the beta period, billing is completed exclusively via promo code
+ * (POST /api/auth/redeem-promo). Card entry is handled entirely client-side
+ * for the upcoming card-billing rollout; card values stay in local component
+ * state only.
  *
- * Note on reuse: the spec suggested importing UpgradeModal's PromoCodeForm, but
- * that component redeems-and-reloads on Apply, which is incompatible with the
- * "apply → order summary updates → Confirm button redeems → redirect to /jobs"
- * flow this page (and its tests) require. There is no frontend validate-only
- * endpoint (backend is unchanged), so the promo Apply here is optimistic and the
- * single real redemption happens on Confirm.
+ * Promo Apply updates the order summary; the single redemption call happens
+ * on Confirm, then the user is redirected to /jobs.
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@/compat/router';
@@ -50,6 +45,24 @@ function formatCvv(value: string): string {
   return value.replace(/\D/g, '').slice(0, 4);
 }
 
+// ── Card validation (client-side) ────────────────────────────────────────────
+function isCardNumberValid(value: string): boolean {
+  return value.replace(/\s/g, '').length === 16;
+}
+function isExpiryValid(value: string): boolean {
+  const m = /^(\d{2})\/(\d{2})$/.exec(value);
+  if (!m) return false;
+  const month = parseInt(m[1], 10);
+  if (month < 1 || month > 12) return false;
+  const year = 2000 + parseInt(m[2], 10);
+  const now = new Date();
+  // Valid through the last day of the expiry month.
+  return year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1);
+}
+function isCvvValid(value: string): boolean {
+  return value.length === 3 || value.length === 4;
+}
+
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -61,12 +74,15 @@ export default function PremiumCheckout() {
   const { isAuthenticated, isLoading, isPremium, usage, refreshUsage } = useAuth();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
-  // Card fields — UI-only, never transmitted.
+  // Card entry state (client-side).
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvv, setCvv] = useState('');
   const [cardName, setCardName] = useState('');
   const [cardFocused, setCardFocused] = useState(false);
+  // Track which card fields have been blurred so validation errors only show
+  // after the user has interacted (standard checkout behavior).
+  const [touched, setTouched] = useState<{ [k: string]: boolean }>({});
 
   // Promo + confirmation.
   const [promoCode, setPromoCode] = useState('');
@@ -84,6 +100,17 @@ export default function PremiumCheckout() {
       nav('/login?redirect=/premium', { replace: true });
     }
   }, [isLoading, isAuthenticated, nav]);
+
+  // Card field validity (errors shown only after blur via `touched`).
+  const cardNumberInvalid = touched.cardNumber && !isCardNumberValid(cardNumber);
+  const expiryInvalid = touched.expiry && !isExpiryValid(expiry);
+  const cvvInvalid = touched.cvv && !isCvvValid(cvv);
+  const nameInvalid = touched.cardName && cardName.trim() === '';
+  const cardGroupInvalid = cardNumberInvalid || expiryInvalid || cvvInvalid;
+  const cardComplete =
+    isCardNumberValid(cardNumber) && isExpiryValid(expiry) && isCvvValid(cvv) && cardName.trim() !== '';
+
+  const markTouched = (field: string) => setTouched(t => ({ ...t, [field]: true }));
 
   const applyPromo = () => {
     if (!promoCode.trim()) return;
@@ -228,7 +255,7 @@ export default function PremiumCheckout() {
       <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' }}>Payment method</h2>
 
       {/* Connected card group (Stripe-style) — card number on top, expiry + CVV below. */}
-      <div style={{ border: `1px solid ${cardFocused ? 'var(--acid)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', transition: 'border-color 0.15s', background: 'var(--bg-surface, var(--surface-solid))' }}>
+      <div style={{ border: `1px solid ${cardGroupInvalid ? 'var(--danger)' : cardFocused ? 'var(--acid)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', transition: 'border-color 0.15s', background: 'var(--bg-surface, var(--surface-solid))' }}>
         <div style={{ position: 'relative', borderBottom: '1px solid var(--border)' }}>
           <CreditCard size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
           <input
@@ -236,7 +263,8 @@ export default function PremiumCheckout() {
             placeholder="1234 5678 9012 3456" maxLength={19}
             value={cardNumber}
             onChange={e => setCardNumber(formatCardNumber(e.target.value))}
-            onFocus={() => setCardFocused(true)} onBlur={() => setCardFocused(false)}
+            onFocus={() => setCardFocused(true)}
+            onBlur={() => { setCardFocused(false); markTouched('cardNumber'); }}
             aria-label="Card number"
             style={{ ...cardInputBase, paddingLeft: 38 }}
           />
@@ -247,9 +275,10 @@ export default function PremiumCheckout() {
             placeholder="MM/YY" maxLength={5}
             value={expiry}
             onChange={e => setExpiry(formatExpiry(e.target.value))}
-            onFocus={() => setCardFocused(true)} onBlur={() => setCardFocused(false)}
-            aria-label="Expiry date"
-            style={{ ...cardInputBase, borderRight: '1px solid var(--border)' }}
+            onFocus={() => setCardFocused(true)}
+            onBlur={() => { setCardFocused(false); markTouched('expiry'); }}
+            aria-label="Expiry date" aria-invalid={expiryInvalid || undefined}
+            style={{ ...cardInputBase, borderRight: '1px solid var(--border)', color: expiryInvalid ? 'var(--danger)' : 'var(--text-primary)' }}
           />
           <div style={{ position: 'relative', flex: 1 }}>
             <Lock size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
@@ -258,8 +287,9 @@ export default function PremiumCheckout() {
               placeholder="CVV" maxLength={4}
               value={cvv}
               onChange={e => setCvv(formatCvv(e.target.value))}
-              onFocus={() => setCardFocused(true)} onBlur={() => setCardFocused(false)}
-              aria-label="CVV"
+              onFocus={() => setCardFocused(true)}
+              onBlur={() => { setCardFocused(false); markTouched('cvv'); }}
+              aria-label="CVV" aria-invalid={cvvInvalid || undefined}
               style={{ ...cardInputBase, paddingLeft: 34 }}
             />
           </div>
@@ -271,10 +301,19 @@ export default function PremiumCheckout() {
         placeholder="Name on card"
         value={cardName}
         onChange={e => setCardName(e.target.value)}
-        onFocus={focusOn} onBlur={focusOff}
-        aria-label="Cardholder name"
-        style={{ ...standaloneInput, marginTop: 10 }}
+        onFocus={focusOn}
+        onBlur={e => { focusOff(e); markTouched('cardName'); }}
+        aria-label="Cardholder name" aria-invalid={nameInvalid || undefined}
+        style={{ ...standaloneInput, marginTop: 10, borderColor: nameInvalid ? 'var(--danger)' : 'var(--border)' }}
       />
+      {(cardNumberInvalid || expiryInvalid || cvvInvalid || nameInvalid) && (
+        <p style={{ margin: '8px 0 0', fontSize: '0.76rem', color: 'var(--danger)' }}>
+          {cardNumberInvalid ? 'Enter a valid 16-digit card number.'
+            : expiryInvalid ? 'Enter a valid expiry date (MM/YY).'
+            : cvvInvalid ? 'Enter the 3–4 digit security code.'
+            : 'Enter the name on the card.'}
+        </p>
+      )}
 
       {/* Adjacent trust cue — research: place security next to the card, not only in the footer. */}
       <p style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
@@ -288,7 +327,7 @@ export default function PremiumCheckout() {
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
 
-      {/* Promo — the real payment path during beta. */}
+      {/* Promo code entry — the supported billing path during beta. */}
       <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 10px' }}>Have a promo code?</h2>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
@@ -360,8 +399,26 @@ export default function PremiumCheckout() {
     >
       {confirmed ? (<><Check size={18} /> Premium activated!</>)
         : confirming ? (<><Spinner size={16} /> Processing…</>)
-        : (<>Confirm payment · {promoApplied ? PLAN_ZERO : PLAN_PRICE}</>)}
+        : promoApplied ? (<>Confirm payment · {PLAN_ZERO}</>)
+        : cardComplete ? (<>Confirm payment · {PLAN_PRICE}</>)
+        : (<>Enter payment details</>)}
     </button>
+  );
+
+  // Shown under the button when the card is filled but card billing hasn't
+  // opened yet — steers the user to the promo path without blocking silently.
+  const betaNotice = !promoApplied && cardComplete && !confirmed ? (
+    <p style={{ margin: '8px 0 0', fontSize: '0.76rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+      Beta: use promo code for access
+    </p>
+  ) : null;
+
+  const legalNotice = (
+    <p style={{ margin: '12px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+      By confirming, you agree to our{' '}
+      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Terms</a> and{' '}
+      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Privacy Policy</a>.
+    </p>
   );
 
   const confirmErrorEl = confirmError ? (
@@ -392,7 +449,9 @@ export default function PremiumCheckout() {
       {!isMobile && (
         <div style={{ marginTop: 20 }}>
           {confirmButton}
+          {betaNotice}
           {confirmErrorEl}
+          {legalNotice}
           {trustFooter}
         </div>
       )}
@@ -423,6 +482,8 @@ export default function PremiumCheckout() {
           }}>
             {confirmErrorEl}
             {confirmButton}
+            {betaNotice}
+            {legalNotice}
             {trustFooter}
           </div>
         )}

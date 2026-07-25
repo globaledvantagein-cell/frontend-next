@@ -28,12 +28,21 @@ import type { GateReason, GateUsage } from '../types';
 
 export const PREMIUM_PRICE_LABEL = 'Upgrade to Premium — €14.99/3 months';
 
-/** Weekday name for a reset date (counters reset Monday) — falls back to "Monday". */
+/**
+ * Relative label for the next counter reset. `dateStr` is the LAST reset
+ * (weekResetAt, set by the Monday 00:00 UTC cron); the next reset is 7 days
+ * later. Relative wording ("in 2 days") stays accurate in every timezone,
+ * unlike a fixed weekday name. Falls back to "Monday".
+ */
 export function resetDayLabel(dateStr?: string | null): string {
   if (!dateStr) return 'Monday';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return 'Monday';
-  return d.toLocaleDateString(undefined, { weekday: 'long' });
+  const last = new Date(dateStr);
+  if (isNaN(last.getTime())) return 'Monday';
+  const next = new Date(last.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const days = Math.ceil((next.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (days <= 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return `in ${days} days`;
 }
 
 // ─── Reusable: thin usage progress bar ───────────────────────────────────────
