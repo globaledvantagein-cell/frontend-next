@@ -19,6 +19,7 @@ import { Sparkles, Upload, Wrench, RefreshCw } from 'lucide-react';
 import { Container, PageHeader, Button, EmptyState } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { fetchSkillMatches, type SkillMatchJob } from '../utils/skillMatchApi';
+import { PremiumPitch } from '../components/UpgradeModal';
 import { BRAND } from '../theme/brand';
 
 type Status = 'loading' | 'done' | 'no_profile' | 'no_skills' | 'no_matches' | 'error';
@@ -32,7 +33,7 @@ const MATCH_GRID: CSSProperties = {
 };
 
 export default function TodayMatches() {
-  const { token, isLoading: authLoading } = useAuth();
+  const { token, isLoading: authLoading, isPremium, isAdmin, usage } = useAuth();
   const navigate = useNavigate();
   const [status, setStatus] = useState<Status>('loading');
   const [matches, setMatches] = useState<SkillMatchJob[]>([]);
@@ -59,15 +60,39 @@ export default function TodayMatches() {
   };
 
   useEffect(() => {
-    if (authLoading || !token) return;
+    // Premium-only — don't call /skill-matches (it 403s) for non-premium users.
+    if (authLoading || !token || !isPremium) return;
     load();
-  }, [token, authLoading]);
+  }, [token, authLoading, isPremium]);
 
   if (authLoading) {
     return (
       <Container style={{ padding: '40px 24px' }}>
         <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
       </Container>
+    );
+  }
+
+  // Premium gate — show the pitch before hitting the (403-ing) API. Wait for
+  // premium status to resolve first (admins are always premium).
+  if (!isAdmin && usage === null) {
+    return (
+      <Container style={{ padding: '40px 24px' }}>
+        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+      </Container>
+    );
+  }
+  if (!isPremium) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
+        <Container style={{ maxWidth: 800, padding: '40px 24px 48px' }}>
+          <PremiumPitch
+            icon={<Sparkles size={26} />}
+            title="Today's Matches — Premium"
+            description="A fresh, daily shortlist of jobs matched to your profile skills — no AI cost, updated every day. Available with Premium."
+          />
+        </Container>
+      </div>
     );
   }
 

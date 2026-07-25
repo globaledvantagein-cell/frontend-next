@@ -1,18 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
-import type { IJob } from '../types';
+import type { IJob, GateReason, GateUsage, GatedTeaser } from '../types';
 import { fetchJobDetail } from '../utils/jobApi';
-
-interface GatedTeaser {
-  _id?: string;
-  JobTitle?: string;
-  Company?: string;
-  Location?: string;
-}
 
 interface Result {
   job: IJob | null;
   gated: boolean;
   teaser: GatedTeaser | null;
+  gateReason: GateReason | null;
+  usage: GateUsage | null;
   loading: boolean;
   error: string | null;
   refetch: () => void;
@@ -33,13 +28,15 @@ export function useGatedJobDetail(jobId: string | null, fallbackTeaser?: GatedTe
     job: null,
     gated: false,
     teaser: null,
+    gateReason: null,
+    usage: null,
     loading: false,
     error: null,
   });
 
   const load = useCallback(async () => {
     if (!jobId) {
-      setState({ job: null, gated: false, teaser: null, loading: false, error: null });
+      setState({ job: null, gated: false, teaser: null, gateReason: null, usage: null, loading: false, error: null });
       return;
     }
     setState(s => ({ ...s, loading: true, error: null }));
@@ -50,6 +47,8 @@ export function useGatedJobDetail(jobId: string | null, fallbackTeaser?: GatedTe
           job: null,
           gated: true,
           teaser: res.teaser || fallbackTeaser || null,
+          gateReason: res.gateReason,
+          usage: res.usage ?? null,
           loading: false,
           error: null,
         });
@@ -58,6 +57,8 @@ export function useGatedJobDetail(jobId: string | null, fallbackTeaser?: GatedTe
           job: res.job as IJob,
           gated: false,
           teaser: null,
+          gateReason: null,
+          usage: null,
           loading: false,
           error: null,
         });
@@ -67,6 +68,8 @@ export function useGatedJobDetail(jobId: string | null, fallbackTeaser?: GatedTe
         job: null,
         gated: false,
         teaser: null,
+        gateReason: null,
+        usage: null,
         loading: false,
         error: err.message || 'Failed to load job',
       });

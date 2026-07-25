@@ -11,7 +11,8 @@ import { parseAllLocations, isMeaningful, normalizeWorkplace, detailedSalary, ge
 import { Badge, Button } from './ui';
 import { useAuth } from '../context/AuthContext';
 import { useAppliedJobs } from '../context/AppliedJobsContext';
-import { apiPost } from '../utils/jobApi';
+import { apiPost, ApiError } from '../utils/jobApi';
+import type { GateUsage } from '../types';
 
 interface Props {
   job: IJob;
@@ -19,9 +20,11 @@ interface Props {
   onApplyTracked?: (jobId: string, applyClicks: number) => void;
   /** Called when an unauthenticated user clicks Apply — show the SignupGate */
   onAuthRequired?: () => void;
+  /** Called when a free user hits the weekly apply-click limit (403 apply_limit) */
+  onApplyLimit?: (usage?: GateUsage | null) => void;
 }
 
-export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired }: Props) {
+export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, onApplyLimit }: Props) {
   const [showAllLocations, setShowAllLocations] = useState(false);
   const [copied, setCopied] = useState(false);
   const { isAuthenticated } = useAuth();
@@ -60,10 +63,18 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired }:
     // Queue for "Did you apply?" confirmation toast on tab refocus
     addPending(job._id, job.JobTitle, job.Company);
 
-    // Track the click in the background — don't block navigation
+    // Track the click in the background — don't block navigation. A free user
+    // over their weekly limit gets a 403 { gated, gateReason: 'apply_limit' };
+    // surface the upgrade modal instead of silently swallowing it.
     apiPost<{ applyClicks: number }>(`/api/jobs/${job._id}/apply-click`, {})
       .then(result => onApplyTracked?.(job._id, result.applyClicks ?? 0))
-      .catch(console.error);
+      .catch(err => {
+        if (err instanceof ApiError && err.status === 403 && err.body?.gateReason === 'apply_limit') {
+          onApplyLimit?.(err.body.usage ?? null);
+          return;
+        }
+        console.error(err);
+      });
   };
 
   return (

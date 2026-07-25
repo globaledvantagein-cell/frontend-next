@@ -19,6 +19,7 @@
 import { getFingerprint } from './fingerprint';
 import { getVisitorId } from './visitorId';
 import { memoryGet, memorySet, localGet, localSet } from './cache/index';
+import type { GatedResponse, UsageStats, SubscriptionResponse } from '../types';
 
 // Single source of truth — must match the key used by AuthContext.
 export const STORAGE_KEY_TOKEN = 'ejg_token';
@@ -61,7 +62,7 @@ export async function apiGet<T = any>(path: string, opts: RequestOpts = {}): Pro
     });
     if (!res.ok && res.status !== 200) {
         const err = await res.json().catch(() => ({}));
-        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status);
+        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status, err);
     }
     return res.json();
 }
@@ -79,7 +80,7 @@ export async function apiPost<T = any>(path: string, body?: unknown, opts: Reque
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status);
+        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status, err);
     }
     return res.json();
 }
@@ -97,7 +98,7 @@ export async function apiPatch<T = any>(path: string, body?: unknown, opts: Requ
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status);
+        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status, err);
     }
     return res.json();
 }
@@ -112,7 +113,7 @@ export async function apiDelete<T = any>(path: string, opts: RequestOpts = {}): 
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status);
+        throw new ApiError(err.error || `Request failed: ${res.status}`, res.status, err);
     }
     return res.json();
 }
@@ -162,23 +163,60 @@ export async function apiGetCached<T = any>(path: string, opts: CachedRequestOpt
     return fresh;
 }
 
-/** Custom error type so callers can branch on status (e.g. 401 → redirect to /login). */
+/**
+ * Custom error type so callers can branch on status (e.g. 401 → redirect to
+ * /login). `body` carries the parsed JSON error payload so callers can read
+ * fields the message doesn't expose — e.g. the apply-limit gate returns
+ * { gated, gateReason, usage } with a 403.
+ */
 export class ApiError extends Error {
     status: number;
-    constructor(message: string, status: number) {
+    body: any;
+    constructor(message: string, status: number, body?: any) {
         super(message);
         this.status = status;
+        this.body = body;
         this.name = 'ApiError';
     }
 }
 
-// Job-detail-specific shape — backend returns one of these two responses.
-export type JobDetailResponse =
-    | { gated: false; job: any }
-    | { gated: true; teaser: any };
+// Job-detail shape — backend (Chunk 2) returns one of the GatedResponse variants.
+export type JobDetailResponse = GatedResponse;
 
 export async function fetchJobDetail(jobId: string, opts?: RequestOpts): Promise<JobDetailResponse> {
     return apiGet<JobDetailResponse>(`/api/jobs/${encodeURIComponent(jobId)}/full`, opts);
+}
+
+// ─── Premium: usage stats, promo redemption, subscription history ───────────
+
+// Usage stats change slowly (once per JD view / apply, reset weekly). Cache in
+// memory for 60s so page nav doesn't re-hit /usage on every mount.
+const USAGE_TTL_MS = 60 * 1000;
+let usageCache: { data: UsageStats; at: number } | null = null;
+
+/** GET /api/auth/usage. Memory-cached 60s; pass force to bypass (e.g. after a promo redeem). */
+export async function fetchUsageStats(force = false): Promise<UsageStats> {
+    if (!force && usageCache && Date.now() - usageCache.at < USAGE_TTL_MS) {
+        return usageCache.data;
+    }
+    const data = await apiGet<UsageStats>('/api/auth/usage');
+    usageCache = { data, at: Date.now() };
+    return data;
+}
+
+/** Drop the cached usage stats (call after any action that changes premium/usage). */
+export function clearUsageCache(): void {
+    usageCache = null;
+}
+
+/** POST /api/auth/redeem-promo. Throws ApiError (with .body) on an invalid code. */
+export async function redeemPromoCode(code: string): Promise<{ success: boolean; premiumUntil: string | null; plan: string }> {
+    return apiPost('/api/auth/redeem-promo', { code });
+}
+
+/** GET /api/auth/subscription — current premium status, usage, and purchase history. */
+export async function fetchSubscriptionHistory(): Promise<SubscriptionResponse> {
+    return apiGet<SubscriptionResponse>('/api/auth/subscription');
 }
 
 /**

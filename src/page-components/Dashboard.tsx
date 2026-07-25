@@ -6,10 +6,13 @@ import MobileDetailOverlay from '../components/MobileDetailOverlay';
 import PublicJobDetail from '../components/PublicJobDetail';
 import JobDetailSkeleton from '../components/JobDetailSkeleton';
 import SignupGate from '../components/SignupGate';
+import UpgradeModal from '../components/UpgradeModal';
 import { Button, Container, EmptyState } from '../components/ui';
 import { DashboardFilterBar, MobileFilterSheet } from '../components/DashboardFilterBar';
 import { DesktopJobCard, MobileJobCard } from '../components/jobs/JobListItem';
 import { useAppliedJobs } from '../context/AppliedJobsContext';
+import { useAuth } from '../context/AuthContext';
+import type { GateReason, GateUsage } from '../types';
 import { BRAND } from '../theme/brand';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useJobFilters } from '../hooks/useJobFilters';
@@ -30,6 +33,7 @@ export default function Dashboard() {
   } = useJobFilters(companyParam || undefined, searchParam || undefined);
 
   const { isApplied } = useAppliedJobs();
+  const { isPremium } = useAuth();
 
   const [selectedJobId,    setSelectedJobId]    = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
@@ -37,6 +41,9 @@ export default function Dashboard() {
   const [filterSheetOpen,  setFilterSheetOpen]  = useState(false);
   const [openDropdown,     setOpenDropdown]     = useState<string | null>(null);
   const [forceGate,        setForceGate]        = useState(false);
+  // The active upgrade/gate modal (null = closed). Reused for JD-limit,
+  // apply-limit, signup, and premium-filter gates.
+  const [gateModal,        setGateModal]        = useState<{ reason: GateReason; usage?: GateUsage | null } | null>(null);
 
   const isMobile = useMediaQuery('(max-width: 767px)');
 
@@ -134,13 +141,26 @@ export default function Dashboard() {
     [jobs, selectedJobId],
   );
 
-  const { job: fullJob, gated, teaser: gatedTeaser, loading: detailLoading, refetch: refetchDetail } =
+  const { job: fullJob, gated, teaser: gatedTeaser, gateReason, usage: gateUsage, loading: detailLoading, refetch: refetchDetail } =
     useGatedJobDetail(selectedJobId, selectedTeaser);
 
   const desktopSplitHeight = splitHeight ? `${splitHeight}px` : undefined;
 
   // Reset forceGate when selection changes
   useEffect(() => { setForceGate(false); }, [selectedJobId]);
+
+  // A gated JD-detail response pops the UpgradeModal. signup_required also keeps
+  // the in-panel SignupGate (below) so the panel isn't blank behind the modal.
+  useEffect(() => {
+    if (gated && gateReason) setGateModal({ reason: gateReason, usage: gateUsage });
+  }, [gated, gateReason, gateUsage]);
+
+  const handleApplyLimit = useCallback((usage?: GateUsage | null) => {
+    setGateModal({ reason: 'apply_limit', usage });
+  }, []);
+  const handlePremiumFilter = useCallback(() => {
+    setGateModal({ reason: 'premium_required' });
+  }, []);
 
   const handleApplyTracked = useCallback((jobId: string, applyClicks: number) => {
     updateJob(jobId, { applyClicks });
@@ -172,7 +192,33 @@ export default function Dashboard() {
       return <JobDetailSkeleton />;
     }
     if (gated) {
-      return <SignupGate teaser={gatedTeaser || selectedTeaser || undefined} onAuthSuccess={refetchDetail} />;
+      // Anonymous visitor → the Google-auth SignupGate is the right surface.
+      if (gateReason === 'signup_required') {
+        return <SignupGate teaser={gatedTeaser || selectedTeaser || undefined} onAuthSuccess={refetchDetail} />;
+      }
+      // Signed-in free user (jd_limit) or premium-gated content → a light teaser
+      // backdrop; the UpgradeModal (opened by the effect above) is the CTA.
+      const t = gatedTeaser || selectedTeaser;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '32px 20px', maxWidth: 440, margin: '0 auto', gap: 12 }}>
+          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', color: 'var(--text-primary)', margin: 0 }}>
+            {t?.JobTitle || 'Weekly limit reached'}
+          </h2>
+          {t?.Company && (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+              {t.Company}{(t as any)?.Location ? ` · ${(t as any).Location}` : ''}
+            </p>
+          )}
+          {(gatedTeaser?.descriptionPreview) && (
+            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
+              {gatedTeaser.descriptionPreview}
+            </p>
+          )}
+          <Button size="sm" onClick={() => setGateModal({ reason: gateReason || 'jd_limit', usage: gateUsage })}>
+            Upgrade to see the full description
+          </Button>
+        </div>
+      );
     }
     if (fullJob) {
       return (
@@ -180,6 +226,7 @@ export default function Dashboard() {
           job={fullJob}
           onApplyTracked={handleApplyTracked}
           onAuthRequired={() => setForceGate(true)}
+          onApplyLimit={handleApplyLimit}
         />
       );
     }
@@ -252,6 +299,7 @@ export default function Dashboard() {
             clearFilters={clearFilters}
             openDropdown={openDropdown} setOpenDropdown={setOpenDropdown}
             onOpenFilterSheet={() => setFilterSheetOpen(true)}
+            isPremium={isPremium} onPremiumRequired={handlePremiumFilter}
           />
         </div>
 
@@ -264,6 +312,7 @@ export default function Dashboard() {
             hasActiveFilters={hasActiveFilters} clearFilters={clearFilters}
             openDropdown={openDropdown} setOpenDropdown={setOpenDropdown}
             onClose={() => setFilterSheetOpen(false)}
+            isPremium={isPremium} onPremiumRequired={handlePremiumFilter}
           />
         )}
 
@@ -337,6 +386,14 @@ export default function Dashboard() {
           </MobileDetailOverlay>
         )}
       </Container>
+
+      {gateModal && (
+        <UpgradeModal
+          gateReason={gateModal.reason}
+          usage={gateModal.usage}
+          onClose={() => setGateModal(null)}
+        />
+      )}
     </div>
   );
 }

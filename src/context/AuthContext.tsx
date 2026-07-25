@@ -2,7 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { apiPost, STORAGE_KEY_TOKEN, STORAGE_KEY_USER } from '../utils/jobApi';
+import { apiPost, fetchUsageStats, clearUsageCache, STORAGE_KEY_TOKEN, STORAGE_KEY_USER } from '../utils/jobApi';
+import type { UsageStats } from '../types';
 
 interface User {
   id: string;
@@ -21,6 +22,12 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isLoading: boolean;
+  /** Weekly usage counters + limits (null until first fetch / for anonymous). */
+  usage: UsageStats | null;
+  /** True for admins and users with an active premium subscription. */
+  isPremium: boolean;
+  /** Re-fetch usage/premium status (e.g. after redeeming a promo code). */
+  refreshUsage: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,6 +36,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
+
+  // Fetch (or clear) usage stats. Force-bypasses the 60s cache so a fresh
+  // premium status shows immediately after a promo redemption.
+  const refreshUsage = useCallback(async () => {
+    if (!localStorage.getItem(STORAGE_KEY_TOKEN)) { setUsage(null); return; }
+    try {
+      clearUsageCache();
+      setUsage(await fetchUsageStats(true));
+    } catch { /* non-critical — leave prior value */ }
+  }, []);
 
   useEffect(() => {
     const storedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
@@ -80,9 +98,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY_TOKEN);
     localStorage.removeItem(STORAGE_KEY_USER);
+    clearUsageCache();
     setToken(null);
     setUser(null);
+    setUsage(null);
   }, []);
+
+  // Pull usage/premium status whenever auth state settles or the token changes.
+  useEffect(() => {
+    if (token) { refreshUsage(); }
+    else { setUsage(null); }
+  }, [token, refreshUsage]);
+
+  const isAdmin = user?.role === 'admin';
 
   const value = useMemo<AuthContextType>(() => ({
     user,
@@ -91,9 +119,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loginWithGoogle,
     logout,
     isAuthenticated: !!token,
-    isAdmin: user?.role === 'admin',
+    isAdmin,
     isLoading,
-  }), [user, token, login, loginWithGoogle, logout, isLoading]);
+    usage,
+    // Admins are always premium; otherwise defer to the usage endpoint.
+    isPremium: isAdmin || (usage?.isPremium ?? false),
+    refreshUsage,
+  }), [user, token, login, loginWithGoogle, logout, isLoading, usage, isAdmin, refreshUsage]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -9,7 +9,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from './ui';
 import { FILTER_CONTROL_STYLE, type FilterState, type FilterDropdownOption } from '../hooks/useJobFilters';
 import type { IFacetCounts } from '../hooks/jobFilterTypes';
-import { SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs } from './filters/jobFilterSelects';
+import { SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs, PremiumBadge } from './filters/jobFilterSelects';
 
 // Pill-shaped search field style — matches the .filter-pill control language.
 const searchPillStyle = { borderRadius: 999 } as const;
@@ -28,6 +28,10 @@ interface FilterBarProps {
   setOpenDropdown: (id: string | null) => void;
   onOpenFilterSheet: () => void;
   facetCounts?: IFacetCounts | null;
+  /** false = non-premium → advanced filters render locked. Defaults to premium. */
+  isPremium?: boolean;
+  /** Fired when a non-premium user clicks a locked advanced filter. */
+  onPremiumRequired?: () => void;
 }
 
 export function DashboardFilterBar({
@@ -44,10 +48,13 @@ export function DashboardFilterBar({
   setOpenDropdown,
   onOpenFilterSheet,
   facetCounts,
+  isPremium = true,
+  onPremiumRequired,
 }: FilterBarProps) {
+  const premiumProps = { locked: !isPremium, onPremiumRequired };
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
-  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts };
-  const toggleProps = { filters, setFilters, facetCounts };
+  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts, ...premiumProps };
+  const toggleProps = { filters, setFilters, facetCounts, ...premiumProps };
 
   const searchInput = (
     <div className="relative" style={{ flex: 1, minWidth: 0 }}>
@@ -118,7 +125,7 @@ export function DashboardFilterBar({
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {searchInput}
-            <SortSelect {...selectsProps} width={120} />
+            <SortSelect {...selectsProps} {...premiumProps} width={120} />
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 8, flexWrap: 'wrap' }}>
             <FilterSelects {...selectsProps} />
@@ -151,7 +158,7 @@ export function DashboardFilterBar({
           <ToggleChips {...toggleProps} />
           <SalaryRangeInputs {...toggleProps} />
           <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <SortSelect {...selectsProps} width={140} />
+            <SortSelect {...selectsProps} {...premiumProps} width={140} />
             {countLabel}{clearAll}
           </div>
         </div>
@@ -174,6 +181,8 @@ interface MobileFilterSheetProps {
   setOpenDropdown: (id: string | null) => void;
   onClose: () => void;
   facetCounts?: IFacetCounts | null;
+  isPremium?: boolean;
+  onPremiumRequired?: () => void;
 }
 
 export function MobileFilterSheet({
@@ -188,10 +197,13 @@ export function MobileFilterSheet({
   setOpenDropdown,
   onClose,
   facetCounts,
+  isPremium = true,
+  onPremiumRequired,
 }: MobileFilterSheetProps) {
+  const premiumProps = { locked: !isPremium, onPremiumRequired };
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
-  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts };
-  const toggleProps = { filters, setFilters, facetCounts };
+  const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts, ...premiumProps };
+  const toggleProps = { filters, setFilters, facetCounts, ...premiumProps };
   const sectionLabelStyle = { fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' as const, marginTop: 4, marginBottom: 2 };
 
   return (
@@ -214,13 +226,15 @@ export function MobileFilterSheet({
         </div>
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>Sort by</div>
-          <SortSelect {...selectsProps} width="100%" />
+          <SortSelect {...selectsProps} {...premiumProps} width="100%" />
           <div style={sectionLabelStyle}>Filter by</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <FilterSelects {...selectsProps} widthOverride="100%" />
           </div>
 
-          <div style={sectionLabelStyle}>More filters</div>
+          <div style={{ ...sectionLabelStyle, display: 'flex', alignItems: 'center', gap: 6 }}>
+            More filters {!isPremium && <PremiumBadge />}
+          </div>
           {/* 1-column: the attribute labels are long and cramp in 2 columns */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <AttributeSelects {...dropdownProps} widthOverride="100%" />

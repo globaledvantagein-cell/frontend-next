@@ -1,11 +1,15 @@
 'use client';
 
 import { Link } from '@/compat/router';
+import { Crown } from 'lucide-react';
+import { PREMIUM_NAV_PATHS } from './navLinks';
 
 interface Props {
   links: ReadonlyArray<readonly [string, string]>;
   isActive: (path: string) => boolean;
   unreadFeedback: number;
+  /** When false, premium destinations get a crown indicator (awareness only). */
+  isPremium?: boolean;
 }
 
 const linkStyle = (active: boolean): React.CSSProperties => ({
@@ -20,8 +24,8 @@ const linkStyle = (active: boolean): React.CSSProperties => ({
 });
 
 function NavLink({
-  path, label, active, badge,
-}: { path: string; label: string; active: boolean; badge?: number }) {
+  path, label, active, badge, premiumLocked,
+}: { path: string; label: string; active: boolean; badge?: number; premiumLocked?: boolean }) {
   const onEnter = (e: React.MouseEvent<HTMLElement>) => {
     if (!active) (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
   };
@@ -30,10 +34,11 @@ function NavLink({
   };
 
   const inner = (
-    <>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       {label}
+      {premiumLocked && <Crown size={12} style={{ color: 'var(--acid)' }} aria-label="Premium" />}
       {active && <span style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--acid)', borderRadius: 2 }} />}
-    </>
+    </span>
   );
 
   return (
@@ -56,7 +61,7 @@ function NavLink({
   );
 }
 
-export default function DesktopNav({ links, isActive, unreadFeedback }: Props) {
+export default function DesktopNav({ links, isActive, unreadFeedback, isPremium = true }: Props) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
       {links.map(([path, label]) => (
@@ -66,6 +71,7 @@ export default function DesktopNav({ links, isActive, unreadFeedback }: Props) {
           label={label}
           active={isActive(path)}
           badge={path === '/feedback' ? unreadFeedback : undefined}
+          premiumLocked={!isPremium && PREMIUM_NAV_PATHS.has(path)}
         />
       ))}
     </div>

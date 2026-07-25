@@ -1,14 +1,16 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
-import { Link } from '@/compat/router';
-import { Bookmark, Clock, SlidersHorizontal, User as UserIcon, LogOut } from 'lucide-react';
+import { Link, useNavigate } from '@/compat/router';
+import { Bookmark, Clock, SlidersHorizontal, User as UserIcon, LogOut, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSavedJobs } from '../context/SavedJobsContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { Button, Container, Badge, Alert } from '../components/ui';
+import { UsageBar, PromoCodeForm } from '../components/UpgradeModal';
 import { BRAND } from '../theme/brand';
-import { apiGet } from '../utils/jobApi';
+import { apiGet, fetchSubscriptionHistory } from '../utils/jobApi';
+import type { SubscriptionResponse } from '../types';
 import { CATEGORY_LABELS, type Category } from '../utils/categorize';
 import IdentityCard from '../components/profile/IdentityCard';
 import EmailPreferences from '../components/profile/EmailPreferences';
@@ -20,12 +22,13 @@ import type { ProfileData } from '../components/profile/profileTypes';
 // components bring their own compact cards.
 const CONTENT_STACK: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 };
 
-type TabId = 'profile' | 'preferences' | 'saved' | 'history';
+type TabId = 'profile' | 'preferences' | 'subscription' | 'saved' | 'history';
 const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: 'profile',     label: 'Profile',             icon: <UserIcon size={15} /> },
-  { id: 'preferences', label: 'Preferences',         icon: <SlidersHorizontal size={15} /> },
-  { id: 'saved',       label: 'Saved Jobs',          icon: <Bookmark size={15} /> },
-  { id: 'history',     label: 'Application History',  icon: <Clock size={15} /> },
+  { id: 'profile',      label: 'Profile',             icon: <UserIcon size={15} /> },
+  { id: 'preferences',  label: 'Preferences',         icon: <SlidersHorizontal size={15} /> },
+  { id: 'subscription', label: 'Subscription',        icon: <Crown size={15} /> },
+  { id: 'saved',        label: 'Saved Jobs',          icon: <Bookmark size={15} /> },
+  { id: 'history',      label: 'Application History',  icon: <Clock size={15} /> },
 ];
 
 /**
@@ -139,6 +142,7 @@ export default function Profile() {
           <JobPreferencesForm />
         </div>
       )}
+      {tab === 'subscription' && <SubscriptionSection />}
       {tab === 'saved' && <SavedJobsList />}
       {tab === 'history' && (
         <div style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border)', borderRadius: 12, padding: 16 }}>
@@ -320,6 +324,139 @@ function SavedJobsList() {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Subscription ─────────────────────────────────────────────────────────────
+function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function SubscriptionSection() {
+  const navigate = useNavigate();
+  const [data, setData] = useState<SubscriptionResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetchSubscriptionHistory()
+      .then(setData)
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="skeleton" style={{ height: 180, borderRadius: 12 }} />;
+  if (error || !data) {
+    return <Alert type="error">Could not load your subscription details. Please refresh.</Alert>;
+  }
+
+  const { isPremium, usage, history } = data;
+  const expiresAt = usage.premiumExpiresAt;
+  const expiringSoon = isPremium && expiresAt
+    ? (new Date(expiresAt).getTime() - Date.now()) < 7 * DAY_MS
+    : false;
+
+  const cardStyle: CSSProperties = {
+    background: 'var(--bg-surface)', border: '1px solid var(--border)',
+    borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 14,
+  };
+
+  const statusColors: Record<string, { bg: string; fg: string }> = {
+    active:    { bg: 'var(--success-soft)', fg: 'var(--success)' },
+    expired:   { bg: 'var(--bg-surface-2)', fg: 'var(--text-muted)' },
+    cancelled: { bg: 'var(--danger-soft)', fg: 'var(--danger)' },
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {isPremium ? (
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 10, background: 'var(--acid-soft)', color: 'var(--acid)' }}>
+              <Crown size={18} />
+            </span>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Premium</h3>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: 0 }}>
+                Active until {formatDate(expiresAt)}
+              </p>
+            </div>
+            {expiringSoon && (
+              <span style={{ marginLeft: 'auto', fontSize: '0.72rem', fontWeight: 700, color: 'var(--warning)', background: 'var(--warning-soft)', padding: '3px 8px', borderRadius: 6 }}>
+                Expiring soon
+              </span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={cardStyle}>
+          <div>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Free plan</h3>
+            <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', margin: '2px 0 0' }}>
+              Upgrade to Premium for unlimited views, applies, Smart Match, and advanced filters.
+            </p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <UsageBar used={usage.jdViewsUsed} limit={usage.jdViewsLimit ?? 20} label="JD views this week" />
+            <UsageBar used={usage.applyClicksUsed} limit={usage.applyClicksLimit ?? 15} label="Apply clicks this week" />
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate('/premium')}
+            style={{ height: 44, background: 'var(--acid)', color: '#fff', border: 'none', borderRadius: 10, fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+          >
+            <Crown size={16} /> Upgrade to Premium
+          </button>
+          <PromoCodeForm />
+        </div>
+      )}
+
+      {/* Purchase history */}
+      <div style={cardStyle}>
+        <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Purchase history</h3>
+        {history.length === 0 ? (
+          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>No purchases yet.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.82rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}>
+                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Date</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Plan</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Amount</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Status</th>
+                  <th style={{ padding: '6px 8px', fontWeight: 600 }}>Promo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((sub, i) => {
+                  const sc = statusColors[sub.status] || statusColors.expired;
+                  return (
+                    <tr key={sub._id || i} style={{ borderTop: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      <td style={{ padding: '8px' }}>{formatDate(sub.createdAt)}</td>
+                      <td style={{ padding: '8px' }}>{sub.plan}</td>
+                      <td style={{ padding: '8px' }}>
+                        {sub.currency === 'EUR' ? '€' : ''}{(sub.amount ?? 0).toFixed(2)}
+                      </td>
+                      <td style={{ padding: '8px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, background: sc.bg, color: sc.fg, padding: '2px 8px', borderRadius: 6 }}>
+                          {sub.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: '8px' }}>{sub.promoCode || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

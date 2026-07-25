@@ -5,6 +5,7 @@
  * Both the inline filter bar and the mobile bottom sheet render the same
  * three FilterDropdowns; extracting them eliminates the duplication.
  */
+import { Lock } from 'lucide-react';
 import FilterDropdown from '../FilterDropdown';
 import {
   SORT_DROPDOWN_OPTIONS,
@@ -45,16 +46,78 @@ export interface SelectsProps {
 type DropdownProps = Pick<SelectsProps, 'filters' | 'setFilters' | 'openDropdown' | 'setOpenDropdown'>;
 type ToggleProps = Pick<SelectsProps, 'filters' | 'setFilters'>;
 
+// ── Premium gating for advanced filters ─────────────────────────────────────
+// Advanced filters (workplace / experience / employment / visa / relocation /
+// has-salary / salary range / salary-sort) are Premium-only. Non-premium users
+// see them muted + locked; clicking pops the upgrade modal via onPremiumRequired.
+export interface PremiumGateProps {
+  locked?: boolean;              // true = user is NOT premium
+  onPremiumRequired?: () => void;
+}
+
+/** Tiny "Premium" badge for locked filter group labels. */
+export function PremiumBadge() {
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase',
+      background: 'var(--acid-soft)', color: 'var(--acid)', borderRadius: 4, padding: '1px 4px',
+      display: 'inline-flex', alignItems: 'center', gap: 3, lineHeight: 1.4,
+    }}>
+      <Lock size={9} /> Premium
+    </span>
+  );
+}
+
+/**
+ * Wraps a filter control. When `locked`, the control is shown muted (0.5
+ * opacity, non-interactive) with a small lock badge, and a transparent overlay
+ * intercepts clicks to trigger the upgrade modal instead of opening the control.
+ */
+function LockedControl({ locked, onPremiumRequired, children }: PremiumGateProps & { children: React.ReactNode }) {
+  if (!locked) return <>{children}</>;
+  return (
+    <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+      <div style={{ opacity: 0.5, pointerEvents: 'none', display: 'inline-flex' }}>{children}</div>
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute', top: -6, right: -6, zIndex: 2,
+          width: 16, height: 16, borderRadius: '50%',
+          background: 'var(--bg-surface)', border: '1px solid var(--border)',
+          color: 'var(--acid)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <Lock size={10} />
+      </span>
+      <button
+        type="button"
+        aria-label="Premium feature — upgrade to use this filter"
+        onClick={onPremiumRequired}
+        style={{ position: 'absolute', inset: 0, zIndex: 3, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
+      />
+    </div>
+  );
+}
+
 export function SortSelect({
-  width, filters, setFilters, openDropdown, setOpenDropdown,
-}: Pick<SelectsProps, 'filters' | 'setFilters' | 'openDropdown' | 'setOpenDropdown'> & { width: number | string }) {
+  width, filters, setFilters, openDropdown, setOpenDropdown, locked, onPremiumRequired,
+}: Pick<SelectsProps, 'filters' | 'setFilters' | 'openDropdown' | 'setOpenDropdown'> & PremiumGateProps & { width: number | string }) {
+  // Salary sort is Premium-only. For non-premium users mark it locked in the
+  // list and intercept its selection with the upgrade modal.
+  const options = (SORT_DROPDOWN_OPTIONS as unknown as FilterDropdownOption[]).map(o =>
+    locked && o.value === 'salary' ? { ...o, label: `${o.label} 🔒` } : o,
+  );
+
   return (
     <FilterDropdown
       id="sort"
       label="Sort"
       value={filters.sort}
-      options={SORT_DROPDOWN_OPTIONS as unknown as FilterDropdownOption[]}
-      onChange={val => setFilters(prev => ({ ...prev, sort: val as SortOption }))}
+      options={options}
+      onChange={val => {
+        if (locked && val === 'salary') { onPremiumRequired?.(); return; }
+        setFilters(prev => ({ ...prev, sort: val as SortOption }));
+      }}
       openId={openDropdown}
       onOpenChange={setOpenDropdown}
       active={filters.sort !== 'newest'}
@@ -120,54 +183,60 @@ export function FilterSelects({
  * from FilterSelects so the desktop layout can place them on their own row.
  */
 export function AttributeSelects({
-  filters, setFilters, openDropdown, setOpenDropdown, widthOverride, facetCounts,
-}: DropdownProps & { widthOverride?: number | string; facetCounts?: IFacetCounts | null }) {
+  filters, setFilters, openDropdown, setOpenDropdown, widthOverride, facetCounts, locked, onPremiumRequired,
+}: DropdownProps & PremiumGateProps & { widthOverride?: number | string; facetCounts?: IFacetCounts | null }) {
   return (
     <>
-      <FilterDropdown
-        id="workplace"
-        label="Workplace"
-        value=""
-        options={withCounts(WORKPLACE_OPTIONS, facetCounts?.workplace)}
-        onChange={() => {}}
-        multiSelect
-        selectedValues={filters.workplace}
-        onMultiChange={vals => setFilters(prev => ({ ...prev, workplace: vals }))}
-        openId={openDropdown}
-        onOpenChange={setOpenDropdown}
-        active={filters.workplace.length > 0}
-        width={widthOverride ?? 110}
-      />
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+        <FilterDropdown
+          id="workplace"
+          label="Workplace"
+          value=""
+          options={withCounts(WORKPLACE_OPTIONS, facetCounts?.workplace)}
+          onChange={() => {}}
+          multiSelect
+          selectedValues={filters.workplace}
+          onMultiChange={vals => setFilters(prev => ({ ...prev, workplace: vals }))}
+          openId={openDropdown}
+          onOpenChange={setOpenDropdown}
+          active={filters.workplace.length > 0}
+          width={widthOverride ?? 110}
+        />
+      </LockedControl>
 
-      <FilterDropdown
-        id="experience"
-        label="Experience"
-        value=""
-        options={withCounts(EXPERIENCE_OPTIONS, facetCounts?.experience)}
-        onChange={() => {}}
-        multiSelect
-        selectedValues={filters.experience}
-        onMultiChange={vals => setFilters(prev => ({ ...prev, experience: vals }))}
-        openId={openDropdown}
-        onOpenChange={setOpenDropdown}
-        active={filters.experience.length > 0}
-        width={widthOverride ?? 120}
-      />
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+        <FilterDropdown
+          id="experience"
+          label="Experience"
+          value=""
+          options={withCounts(EXPERIENCE_OPTIONS, facetCounts?.experience)}
+          onChange={() => {}}
+          multiSelect
+          selectedValues={filters.experience}
+          onMultiChange={vals => setFilters(prev => ({ ...prev, experience: vals }))}
+          openId={openDropdown}
+          onOpenChange={setOpenDropdown}
+          active={filters.experience.length > 0}
+          width={widthOverride ?? 120}
+        />
+      </LockedControl>
 
-      <FilterDropdown
-        id="employment"
-        label="Employment"
-        value=""
-        options={withCounts(EMPLOYMENT_OPTIONS, facetCounts?.employment)}
-        onChange={() => {}}
-        multiSelect
-        selectedValues={filters.employment}
-        onMultiChange={vals => setFilters(prev => ({ ...prev, employment: vals }))}
-        openId={openDropdown}
-        onOpenChange={setOpenDropdown}
-        active={filters.employment.length > 0}
-        width={widthOverride ?? 120}
-      />
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+        <FilterDropdown
+          id="employment"
+          label="Employment"
+          value=""
+          options={withCounts(EMPLOYMENT_OPTIONS, facetCounts?.employment)}
+          onChange={() => {}}
+          multiSelect
+          selectedValues={filters.employment}
+          onMultiChange={vals => setFilters(prev => ({ ...prev, employment: vals }))}
+          openId={openDropdown}
+          onOpenChange={setOpenDropdown}
+          active={filters.employment.length > 0}
+          width={widthOverride ?? 120}
+        />
+      </LockedControl>
     </>
   );
 }
@@ -209,27 +278,33 @@ export function ToggleChip({
 }
 
 /** The three boolean job-attribute toggles: visa, relocation, has-salary. */
-export function ToggleChips({ filters, setFilters, facetCounts }: ToggleProps & { facetCounts?: IFacetCounts | null }) {
+export function ToggleChips({ filters, setFilters, facetCounts, locked, onPremiumRequired }: ToggleProps & PremiumGateProps & { facetCounts?: IFacetCounts | null }) {
   return (
     <>
-      <ToggleChip
-        label="Visa sponsor"
-        active={filters.visa}
-        count={facetCounts?.visa.available}
-        onToggle={() => setFilters(prev => ({ ...prev, visa: !prev.visa }))}
-      />
-      <ToggleChip
-        label="Relocation"
-        active={filters.relocation}
-        count={facetCounts?.relocation.available}
-        onToggle={() => setFilters(prev => ({ ...prev, relocation: !prev.relocation }))}
-      />
-      <ToggleChip
-        label="Has salary"
-        active={filters.hasSalary}
-        count={facetCounts?.hasSalary.count}
-        onToggle={() => setFilters(prev => ({ ...prev, hasSalary: !prev.hasSalary }))}
-      />
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+        <ToggleChip
+          label="Visa sponsor"
+          active={filters.visa}
+          count={facetCounts?.visa.available}
+          onToggle={() => setFilters(prev => ({ ...prev, visa: !prev.visa }))}
+        />
+      </LockedControl>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+        <ToggleChip
+          label="Relocation"
+          active={filters.relocation}
+          count={facetCounts?.relocation.available}
+          onToggle={() => setFilters(prev => ({ ...prev, relocation: !prev.relocation }))}
+        />
+      </LockedControl>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+        <ToggleChip
+          label="Has salary"
+          active={filters.hasSalary}
+          count={facetCounts?.hasSalary.count}
+          onToggle={() => setFilters(prev => ({ ...prev, hasSalary: !prev.hasSalary }))}
+        />
+      </LockedControl>
     </>
   );
 }
@@ -246,8 +321,8 @@ function blockNonNumericKeys(e: React.KeyboardEvent<HTMLInputElement>) {
 }
 
 export function SalaryRangeInputs({
-  filters, setFilters, stretch = false,
-}: ToggleProps & { stretch?: boolean }) {
+  filters, setFilters, stretch = false, locked, onPremiumRequired,
+}: ToggleProps & PremiumGateProps & { stretch?: boolean }) {
   const min = parseInt(filters.salaryMin, 10);
   const max = parseInt(filters.salaryMax, 10);
   // min>max is silently dropped by the API — surface it instead of confusing
@@ -262,7 +337,7 @@ export function SalaryRangeInputs({
     color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
   };
 
-  return (
+  const group = (
     // One bordered group so Min/Max read as a single "salary range" control,
     // not two orphaned number fields. Border echoes the active/invalid state.
     <div
@@ -297,4 +372,18 @@ export function SalaryRangeInputs({
       />
     </div>
   );
+
+  // `stretch` (mobile sheet) needs the wrapper to fill the row too.
+  if (locked) {
+    return (
+      <div style={{ position: 'relative', display: stretch ? 'flex' : 'inline-flex', flex: stretch ? 1 : undefined }}>
+        <div style={{ opacity: 0.5, pointerEvents: 'none', display: 'inline-flex', flex: stretch ? 1 : undefined }}>{group}</div>
+        <span aria-hidden style={{ position: 'absolute', top: -6, right: -6, zIndex: 2, width: 16, height: 16, borderRadius: '50%', background: 'var(--bg-surface)', border: '1px solid var(--border)', color: 'var(--acid)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Lock size={10} />
+        </span>
+        <button type="button" aria-label="Premium feature — upgrade to filter by salary" onClick={onPremiumRequired} style={{ position: 'absolute', inset: 0, zIndex: 3, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }} />
+      </div>
+    );
+  }
+  return group;
 }

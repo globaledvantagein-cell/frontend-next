@@ -21,9 +21,13 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link } from '@/compat/router';
-import { LogOut, User as UserIcon, ChevronDown } from 'lucide-react';
+import { LogOut, User as UserIcon, ChevronDown, Crown } from 'lucide-react';
 import { Badge } from '../ui';
 import { USER_MENU_LINKS } from './navLinks';
+import { useAuth } from '../../context/AuthContext';
+import { fetchUsageStats } from '../../utils/jobApi';
+import { UsageBar, resetDayLabel } from '../UpgradeModal';
+import type { UsageStats } from '../../types';
 
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)';
 
@@ -45,8 +49,10 @@ const itemStyle: CSSProperties = {
 };
 
 export default function UserMenu({ userName, isAdmin, onLogout }: Props) {
+  const { isPremium } = useAuth();
   const [open, setOpen] = useState(false);
   const [render, setRender] = useState(false);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   // Keep the node mounted through the exit transition, then unmount.
@@ -55,6 +61,16 @@ export default function UserMenu({ userName, isAdmin, onLogout }: Props) {
     const t = setTimeout(() => setRender(false), 110);
     return () => clearTimeout(t);
   }, [open]);
+
+  // Fetch usage only when the dropdown is opened (cached 60s), not on every render.
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    fetchUsageStats().then(u => { if (alive) setUsage(u); }).catch(() => {});
+    return () => { alive = false; };
+  }, [open]);
+
+  const premium = isPremium || usage?.isPremium;
 
   const close = useCallback(() => setOpen(false), []);
 
@@ -143,6 +159,26 @@ export default function UserMenu({ userName, isAdmin, onLogout }: Props) {
               {label}
             </Link>
           ))}
+
+          {/* ── Weekly usage summary ── */}
+          <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
+          <div style={{ padding: '4px 8px 8px' }}>
+            {premium ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: 'var(--acid)' }}>
+                <Crown size={14} /> Premium · Unlimited
+              </div>
+            ) : usage ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <UsageBar used={usage.jdViewsUsed} limit={usage.jdViewsLimit ?? 20} label="JD views" />
+                <UsageBar used={usage.applyClicksUsed} limit={usage.applyClicksLimit ?? 15} label="Apply clicks" />
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                  Resets {resetDayLabel(usage.weekResetAt)}
+                </span>
+              </div>
+            ) : (
+              <div className="skeleton" style={{ height: 34, borderRadius: 6 }} />
+            )}
+          </div>
 
           <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
 

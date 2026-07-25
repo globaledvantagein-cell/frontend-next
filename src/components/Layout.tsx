@@ -22,7 +22,7 @@ import { ADMIN_LINKS, PUBLIC_LINKS } from './layout/navLinks';
 export default function Layout({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user, logout, isAuthenticated, isAdmin } = useAuth();
+  const { user, logout, isAuthenticated, isAdmin, isPremium } = useAuth();
   const { toggle } = useTheme();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
@@ -40,6 +40,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const effIsAuthenticated = hydrated && isAuthenticated;
   const effIsAdmin = hydrated && isAdmin;
   const effUser = hydrated ? user : null;
+  // Pre-hydration render must match logged-out server HTML → assume premium
+  // (no crown) until hydrated, then reveal the real state.
+  const effIsPremium = hydrated ? isPremium : true;
 
   const hideFeedbackWidget = effIsAdmin || loc.pathname.startsWith('/admin');
 
@@ -156,7 +159,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           </Link>
 
           {!isMobileNav && (
-            <DesktopNav links={links} isActive={isActive} unreadFeedback={unreadFeedback} />
+            <DesktopNav links={links} isActive={isActive} unreadFeedback={unreadFeedback} isPremium={effIsPremium} />
           )}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

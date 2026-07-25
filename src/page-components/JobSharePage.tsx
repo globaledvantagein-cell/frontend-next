@@ -24,7 +24,7 @@ import JobDetailSkeleton from '../components/JobDetailSkeleton';
 import SignupGate from '../components/SignupGate';
 import { Container } from '../components/ui';
 import { BRAND } from '../theme/brand';
-import type { IJob } from '../types';
+import type { IJob, GatedTeaser } from '../types';
 
 export default function JobSharePage() {
   const { id } = useParams<{ id: string }>();
@@ -33,7 +33,7 @@ export default function JobSharePage() {
 
   const [job, setJob] = useState<IJob | null>(null);
   const [gated, setGated] = useState(false);
-  const [teaser, setTeaser] = useState<Record<string, unknown> | null>(null);
+  const [teaser, setTeaser] = useState<GatedTeaser | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forceGate, setForceGate] = useState(false);
