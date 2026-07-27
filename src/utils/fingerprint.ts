@@ -1,79 +1,59 @@
-// Lightweight browser fingerprint for the anti-bypass signup gate.
+// Browser fingerprint for the anti-bypass signup gate.
 //
-// Combines: canvas hash, screen size, color depth, timezone, language,
-// platform, hardware concurrency, user agent. Hashed via inline FNV-1a
-// so we don't need a crypto dependency.
+// Backed by @fingerprintjs/fingerprintjs (MIT, open source). It collects 30+
+// signals and weights STABLE ones (canvas, WebGL, audio, fonts) over volatile
+// ones (UA string), so a returning visitor stays recognisable after a UA
+// auto-update, an external monitor, or a language change — cases the old
+// 32-bit FNV-1a hash of raw signals would mis-hash into a "new" visitor.
 //
-// This is NOT cryptographically strong identity — just enough to recognize
-// the same browser/device after a cookie clear. Combined server-side with
-// vid + IP for the composite identity check.
+// Async transition (Option A): the agent is kicked off on module import and its
+// visitorId cached. authHeaders() reads the cache SYNCHRONOUSLY via
+// getFingerprint(); by the time the first user-triggered request fires the id is
+// ready. Until then it returns '' — the backend treats a short/empty fingerprint
+// as null and handles it gracefully (composite identity falls back to vid + IP).
+
+import FingerprintJS from '@fingerprintjs/fingerprintjs';
 
 let cached: string | null = null;
+let loadPromise: Promise<string> | null = null;
 
-function fnv1a(input: string): string {
-  // FNV-1a 32-bit hash, hex-encoded. Stable, deterministic, fast.
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
-  }
-  return hash.toString(16).padStart(8, '0');
+function init(): Promise<string> {
+  if (loadPromise) return loadPromise;
+  loadPromise = FingerprintJS.load()
+    .then(agent => agent.get())
+    .then(result => {
+      cached = result.visitorId;
+      return cached;
+    })
+    .catch(() => {
+      // Fingerprinting failed (rare) — leave the cache empty; the gate degrades
+      // to vid + IP. Never throw from here.
+      cached = cached ?? '';
+      return cached;
+    });
+  return loadPromise;
 }
 
-function getCanvasHash(): string {
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 240;
-    canvas.height = 60;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return 'no-ctx';
-
-    // Exact rendering output varies per GPU/font stack — that's the signal.
-    ctx.textBaseline = 'top';
-    ctx.font = '14px "Arial"';
-    ctx.fillStyle = '#f60';
-    ctx.fillRect(125, 1, 62, 20);
-    ctx.fillStyle = '#069';
-    ctx.fillText('fingerprint-probe-🧪', 2, 15);
-    ctx.fillStyle = 'rgba(102, 204, 0, 0.7)';
-    ctx.fillText('fingerprint-probe-🧪', 4, 17);
-
-    return fnv1a(canvas.toDataURL());
-  } catch {
-    return 'canvas-err';
-  }
+// Kick off computation on import, browser only (this module is evaluated during
+// SSR too, where the FingerprintJS agent's browser APIs are unavailable).
+if (typeof window !== 'undefined') {
+  init();
 }
 
-function gatherSignals(): string {
-  const parts: (string | number)[] = [];
-
-  parts.push(navigator.userAgent || '');
-  parts.push(navigator.language || '');
-  parts.push((navigator.languages || []).join(','));
-  parts.push(navigator.platform || '');
-  parts.push(navigator.hardwareConcurrency || 0);
-  parts.push((navigator as any).deviceMemory || 0);
-
-  parts.push(screen.width || 0);
-  parts.push(screen.height || 0);
-  parts.push(screen.colorDepth || 0);
-  parts.push(screen.pixelDepth || 0);
-  parts.push(window.devicePixelRatio || 1);
-
-  try {
-    parts.push(Intl.DateTimeFormat().resolvedOptions().timeZone || '');
-  } catch {
-    parts.push('');
-  }
-  parts.push(new Date().getTimezoneOffset());
-
-  parts.push(getCanvasHash());
-
-  return parts.join('|');
-}
-
+/**
+ * Synchronous accessor used by authHeaders(). Returns the cached visitorId, or
+ * '' if the async agent hasn't resolved yet (extremely rare — only on the very
+ * first request of a fresh page load). The backend maps '' → null fingerprint.
+ */
 export function getFingerprint(): string {
+  return cached ?? '';
+}
+
+/**
+ * Async accessor for callers that can await the stable id (e.g. an explicit
+ * pre-warm). Resolves immediately if already cached.
+ */
+export async function getFingerprintAsync(): Promise<string> {
   if (cached) return cached;
-  cached = fnv1a(gatherSignals());
-  return cached;
+  return init();
 }

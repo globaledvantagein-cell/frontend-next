@@ -6,7 +6,6 @@ import { careerCategoryLabel } from '@/data/careerGuide';
 import { renderArticle } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 import ReadingProgress from '@/components/ReadingProgress';
-import TableOfContents from '@/components/TableOfContents';
 import ArticleShare from '@/components/ArticleShare';
 import ArticleCta from '@/components/ArticleCta';
 
@@ -54,7 +53,7 @@ export default async function CareerGuideArticle({ params }: Params) {
   if (article.category !== category) redirect(`/career-guide/${article.category}/${slug}`);
 
   const label = careerCategoryLabel(article.category);
-  const { html, headings, readingMinutes } = renderArticle(article.content);
+  const { html, readingMinutes } = renderArticle(article.content);
   const pageUrl = `${SITE_URL}/career-guide/${article.category}/${slug}`;
 
   const related = (await fetchArticlesByCategory(article.category))
@@ -108,10 +107,6 @@ export default async function CareerGuideArticle({ params }: Params) {
       />
 
       <div className="article-shell">
-        <aside className="article-rail">
-          <TableOfContents headings={headings} />
-        </aside>
-
         <article className="article-main">
           <nav aria-label="Breadcrumb" className="article-crumbs">
             <Link href="/">Home</Link>
