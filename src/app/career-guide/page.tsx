@@ -26,9 +26,12 @@ export default async function CareerGuideHub() {
   const articles = await fetchPublishedArticles(3600);
   const counts = new Map<string, number>();
   for (const a of articles) counts.set(a.category, (counts.get(a.category) || 0) + 1);
-  const latest = [...articles]
-    .sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''))
-    .slice(0, 6);
+
+  // Every published guide, newest first — the whole library is browsable
+  // from this one page. Category pages remain as crawlable SEO hubs,
+  // reachable via the topic chips.
+  const sorted = [...articles].sort((a, b) => (b.publishedAt || '').localeCompare(a.publishedAt || ''));
+  const [featured, ...rest] = sorted;
 
   return (
     <div className="guide-hub">
@@ -48,37 +51,61 @@ export default async function CareerGuideHub() {
         </p>
       </header>
 
-      <section aria-labelledby="cats-heading">
-        <h2 id="cats-heading" className="guide-section-title">Browse by topic</h2>
-        <div className="guide-cat-grid">
-          {CAREER_GUIDE_CATEGORIES.map((slug) => {
-            const n = counts.get(slug) || 0;
-            return (
-              <Link key={slug} href={`/career-guide/${slug}`} className="guide-cat">
-                <span className="guide-cat__name">{careerCategoryLabel(slug)}</span>
-                <span className="guide-cat__count">{n} {n === 1 ? 'guide' : 'guides'}</span>
-              </Link>
-            );
-          })}
-        </div>
-      </section>
+      {/* Topic chips — real links to the category pages (SEO hubs). */}
+      <nav aria-label="Guide topics" className="guide-chips">
+        {CAREER_GUIDE_CATEGORIES.map((slug) => {
+          const n = counts.get(slug) || 0;
+          if (n === 0) return null;
+          return (
+            <Link key={slug} href={`/career-guide/${slug}`} className="guide-chip">
+              {careerCategoryLabel(slug)}
+              <span className="guide-chip__count">{n}</span>
+            </Link>
+          );
+        })}
+      </nav>
 
-      {latest.length > 0 && (
-        <section aria-labelledby="latest-heading" className="guide-latest">
-          <h2 id="latest-heading" className="guide-section-title">Latest articles</h2>
-          <div className="guide-article-grid">
-            {latest.map((a) => (
-              <Link key={a._id} href={`/career-guide/${a.category}/${a.slug}`} className="article-card">
-                <span className="article-card__badge">{careerCategoryLabel(a.category)}</span>
-                <span className="article-card__title">{a.title}</span>
-                {a.description && <span className="article-card__desc">{a.description}</span>}
-                <span className="guide-article-card__meta">
-                  {a.publishedAt && <>{formatDate(a.publishedAt)}<span aria-hidden="true"> · </span></>}
-                  {estimateReadingMinutes(a.content)} min read
-                </span>
-              </Link>
+      {featured && (
+        <section aria-labelledby="featured-heading">
+          <h2 id="featured-heading" className="sr-only">Featured guide</h2>
+          <Link href={`/career-guide/${featured.category}/${featured.slug}`} className="guide-feature">
+            <span className="guide-feature__eyebrow">
+              Latest · {careerCategoryLabel(featured.category)}
+            </span>
+            <span className="guide-feature__title">{featured.title}</span>
+            {featured.description && (
+              <span className="guide-feature__desc">{featured.description}</span>
+            )}
+            <span className="guide-feature__meta">
+              {featured.publishedAt && <>{formatDate(featured.publishedAt)}<span aria-hidden="true"> · </span></>}
+              {estimateReadingMinutes(featured.content)} min read
+              <span className="guide-feature__cta">Read the guide →</span>
+            </span>
+          </Link>
+        </section>
+      )}
+
+      {rest.length > 0 && (
+        <section aria-labelledby="all-heading" className="guide-index">
+          <h2 id="all-heading" className="guide-section-title">All guides</h2>
+          <ul className="guide-rows">
+            {rest.map((a) => (
+              <li key={a._id}>
+                <Link href={`/career-guide/${a.category}/${a.slug}`} className="guide-row">
+                  <span className="guide-row__main">
+                    <span className="guide-row__cat">{careerCategoryLabel(a.category)}</span>
+                    <span className="guide-row__title">{a.title}</span>
+                    {a.description && <span className="guide-row__desc">{a.description}</span>}
+                  </span>
+                  <span className="guide-row__meta">
+                    {a.publishedAt && <span>{formatDate(a.publishedAt)}</span>}
+                    <span>{estimateReadingMinutes(a.content)} min read</span>
+                    <span className="guide-row__arrow" aria-hidden="true">→</span>
+                  </span>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
     </div>

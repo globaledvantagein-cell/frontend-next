@@ -1,13 +1,17 @@
 'use client';
 
+/**
+ * Footer — compact editorial band.
+ *
+ * Three tight rows instead of tall link columns:
+ *   1. Brand wordmark + primary product links
+ *   2. Inline SEO link lines (cities, categories) — same internal links as
+ *      before, a fraction of the height
+ *   3. Hairline, then © · legal · socials
+ */
 import { Link } from '@/compat/router';
 import { Linkedin, Twitter, MessageCircle } from 'lucide-react';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../utils/categorize';
-
-const linkStyle: React.CSSProperties = {
-  fontSize: '0.76rem', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.18s',
-};
-const sep: React.CSSProperties = { color: 'var(--border-strong)', fontSize: '0.7rem', userSelect: 'none' };
 
 const SOCIALS: ReadonlyArray<{ label: string; href: string; Icon: typeof Linkedin }> = [
   { label: 'LinkedIn', href: 'https://www.linkedin.com/company/english-jobs-in-germany', Icon: Linkedin },
@@ -15,16 +19,13 @@ const SOCIALS: ReadonlyArray<{ label: string; href: string; Icon: typeof Linkedi
   { label: 'WhatsApp', href: 'https://whatsapp.com/channel/0029VbCqyMl8vd1RyrdNQw11',    Icon: MessageCircle },
 ];
 
-// ── SEO link-hub columns ─────────────────────────────────────────────────────
-const JOB_SEEKER_LINKS: ReadonlyArray<readonly [string, string]> = [
+const PRIMARY_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/jobs', 'Browse Jobs'],
   ['/directory', 'Companies'],
   ['/career-guide', 'Career Guide'],
-  ['/today-matches', "Today's Matches"],
-  ['/smart-match', 'Smart Match'],
+  ['/premium', 'Premium'],
 ];
 
-// Top 6 cities (slugs match CANONICAL_CITIES / the /city/[city] route).
 const POPULAR_CITIES: ReadonlyArray<readonly [string, string]> = [
   ['berlin', 'Berlin'],
   ['munich', 'Munich'],
@@ -34,32 +35,34 @@ const POPULAR_CITIES: ReadonlyArray<readonly [string, string]> = [
   ['cologne', 'Cologne'],
 ];
 
-const columnTitle: React.CSSProperties = {
-  fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-  color: 'var(--text-secondary)', marginBottom: 12,
+const inlineLink: React.CSSProperties = {
+  fontSize: '0.76rem', color: 'var(--text-muted)', textDecoration: 'none',
+  transition: 'color 0.16s',
 };
-const columnLink: React.CSSProperties = {
-  fontSize: '0.82rem', color: 'var(--text-muted)', textDecoration: 'none', transition: 'color 0.16s',
+const rowLabel: React.CSSProperties = {
+  fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+  color: 'var(--text-muted)', flexShrink: 0, opacity: 0.8,
 };
 
-function FooterColumn({ title, links }: { title: string; links: ReadonlyArray<readonly [string, string]> }) {
+function hoverable(e: React.MouseEvent<HTMLElement>, color: string) {
+  e.currentTarget.style.color = color;
+}
+
+function InlineLinkRow({ label, links }: { label: string; links: ReadonlyArray<readonly [string, string]> }) {
   return (
-    <div>
-      <p style={columnTitle}>{title}</p>
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
-        {links.map(([href, label]) => (
-          <li key={href}>
-            <Link
-              to={href}
-              style={columnLink}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >
-              {label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px 14px', flexWrap: 'wrap' }}>
+      <span style={rowLabel}>{label}</span>
+      {links.map(([href, text]) => (
+        <Link
+          key={href}
+          to={href}
+          style={inlineLink}
+          onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+          onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
+        >
+          {text}
+        </Link>
+      ))}
     </div>
   );
 }
@@ -70,30 +73,67 @@ export default function Footer() {
   );
 
   return (
-    <footer style={{ borderTop: '1px solid var(--border)', marginTop: 'auto', padding: '32px 24px 12px' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        {/* Link hub — three responsive columns */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: '24px 32px',
-          marginBottom: 28,
-        }}>
-          <FooterColumn title="For Job Seekers" links={JOB_SEEKER_LINKS} />
-          <FooterColumn title="Popular Cities" links={POPULAR_CITIES.map(([slug, label]) => [`/city/${slug}`, label] as const)} />
-          <FooterColumn title="Job Categories" links={categoryLinks} />
+    <footer style={{ borderTop: '1px solid var(--border)', marginTop: 'auto', padding: '22px 24px 14px' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {/* Row 1 — wordmark + primary links */}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 20px' }}>
+          <Link
+            to="/"
+            style={{
+              fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.05rem', fontWeight: 700,
+              color: 'var(--text-primary)', textDecoration: 'none', letterSpacing: '-0.01em',
+            }}
+          >
+            English <em style={{ fontStyle: 'italic', color: 'var(--acid)' }}>Jobs</em>
+            <span style={{ fontFamily: 'inherit', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', marginLeft: 7, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+              in Germany
+            </span>
+          </Link>
+          <nav aria-label="Footer" style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+            {PRIMARY_LINKS.map(([href, label]) => (
+              <Link
+                key={href}
+                to={href}
+                style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none', transition: 'color 0.16s' }}
+                onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+                onMouseLeave={e => hoverable(e, 'var(--text-secondary)')}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
         </div>
 
-        {/* Legal + socials */}
+        {/* Row 2 — compact SEO link lines */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <InlineLinkRow label="Cities" links={POPULAR_CITIES.map(([slug, label]) => [`/city/${slug}`, label] as const)} />
+          <InlineLinkRow label="Categories" links={categoryLinks} />
+        </div>
+
+        {/* Row 3 — legal + socials */}
         <div style={{
-          borderTop: '1px solid var(--border)', paddingTop: 14,
+          borderTop: '1px solid var(--border)', paddingTop: 10,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           flexWrap: 'wrap', gap: '6px 16px',
         }}>
-          <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)', opacity: 0.7 }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', opacity: 0.7 }}>
             © 2026 English Jobs in Germany
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <Link to="/legal?tab=privacy" style={inlineLink}
+              onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+              onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
+            >Privacy</Link>
+            <Link to="/legal?tab=terms" style={inlineLink}
+              onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+              onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
+            >Terms</Link>
+            <a href="mailto:support@englishjobsgermany.com" style={inlineLink}
+              onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+              onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
+            >Contact</a>
+            <span aria-hidden="true" style={{ width: 1, height: 12, background: 'var(--border-strong)' }} />
             {SOCIALS.map(({ label, href, Icon }) => (
               <a
                 key={label}
@@ -102,28 +142,13 @@ export default function Footer() {
                 rel="noopener noreferrer"
                 aria-label={label}
                 title={label}
-                style={{ color: 'var(--text-muted)', display: 'inline-flex', padding: 4, borderRadius: 6, transition: 'color 160ms cubic-bezier(0.23, 1, 0.32, 1)' }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                style={{ color: 'var(--text-muted)', display: 'inline-flex', transition: 'color 0.16s' }}
+                onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+                onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
               >
-                <Icon size={15} />
+                <Icon size={14} />
               </a>
             ))}
-            <span style={sep}>·</span>
-            <Link to="/legal?tab=privacy" style={linkStyle}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >Privacy</Link>
-            <span style={sep}>·</span>
-            <Link to="/legal?tab=terms" style={linkStyle}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >Terms</Link>
-            <span style={sep}>·</span>
-            <a href="mailto:support@englishjobsgermany.com" style={linkStyle}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
-            >Contact</a>
           </div>
         </div>
       </div>
