@@ -16,7 +16,7 @@ import { RefreshCw, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { Container, PageHeader } from '../components/ui';
 import { apiGet } from '../utils/jobApi';
 
-const PING_INTERVAL_S = 60;
+const PING_INTERVAL_S = 600; // 10 minutes
 const HISTORY_LEN = 40;
 
 type CheckStatus = 'ok' | 'warn' | 'fail';
@@ -122,7 +122,7 @@ export default function SystemHealth() {
         </span>
         <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 12, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
           {data && !unreachable && <span>Last check {new Date(data.timestamp).toLocaleTimeString()}</span>}
-          <span>Next in {countdown}s</span>
+          <span>Next in {countdown >= 60 ? `${Math.ceil(countdown / 60)}m` : `${countdown}s`}</span>
           <button
             type="button"
             onClick={() => { setLoading(true); ping(); }}
