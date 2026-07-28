@@ -6,6 +6,7 @@ import { ThemeProvider } from '../theme/ThemeProvider';
 import { AuthProvider } from '../context/AuthContext';
 import { AppliedJobsProvider } from '../context/AppliedJobsContext';
 import { SavedJobsProvider } from '../context/SavedJobsContext';
+import CookieConsent from './CookieConsent';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -23,7 +24,10 @@ export default function Providers({ children }: { children: ReactNode }) {
       <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
         <AuthProvider>
           <AppliedJobsProvider>
-            <SavedJobsProvider>{children}</SavedJobsProvider>
+            <SavedJobsProvider>
+              {children}
+              <CookieConsent />
+            </SavedJobsProvider>
           </AppliedJobsProvider>
         </AuthProvider>
       </GoogleOAuthProvider>

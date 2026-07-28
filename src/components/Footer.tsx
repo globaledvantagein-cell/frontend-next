@@ -12,6 +12,7 @@
 import { Link } from '@/compat/router';
 import { Linkedin, Twitter, MessageCircle } from 'lucide-react';
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../utils/categorize';
+import { openCookieSettings } from '../utils/consent';
 
 const SOCIALS: ReadonlyArray<{ label: string; href: string; Icon: typeof Linkedin }> = [
   { label: 'LinkedIn', href: 'https://www.linkedin.com/company/english-jobs-in-germany', Icon: Linkedin },
@@ -85,7 +86,7 @@ export default function Footer() {
               color: 'var(--text-primary)', textDecoration: 'none', letterSpacing: '-0.01em',
             }}
           >
-            English <em style={{ fontStyle: 'italic', color: 'var(--acid)' }}>Jobs</em>
+            English <em style={{ fontStyle: 'italic', color: '#6C9CFF' }}>Jobs</em>
             <span style={{ fontFamily: 'inherit', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', marginLeft: 7, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
               in Germany
             </span>
@@ -133,6 +134,13 @@ export default function Footer() {
               onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
               onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
             >Contact</a>
+            <button
+              type="button"
+              onClick={openCookieSettings}
+              style={{ ...inlineLink, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={e => hoverable(e, 'var(--text-primary)')}
+              onMouseLeave={e => hoverable(e, 'var(--text-muted)')}
+            >Cookie settings</button>
             <span aria-hidden="true" style={{ width: 1, height: 12, background: 'var(--border-strong)' }} />
             {SOCIALS.map(({ label, href, Icon }) => (
               <a

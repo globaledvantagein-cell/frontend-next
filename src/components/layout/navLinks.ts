@@ -7,6 +7,7 @@ export const ADMIN_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/add',                'Add Job'],
   ['/rejected',           'Trash'],
   ['/feedback',           'Feedback'],
+  ['/health',             'Health'],
   ['/smart-match',        'Smart Match'],
   ['/today-matches',      "Today's Matches"],
 ];
