@@ -27,7 +27,7 @@ import { track } from '../utils/analytics';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { GateReason, GateUsage } from '../types';
 
-export const PREMIUM_PRICE_LABEL = 'Upgrade to Premium — €14.99/3 months';
+export const PREMIUM_PRICE_LABEL = 'Upgrade to Premium — €14.99/6 months';
 
 /**
  * Relative label for the next counter reset. `dateStr` is the LAST reset
@@ -163,49 +163,16 @@ export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () 
   );
 }
 
-// ─── Reusable: full-page premium pitch (Smart Match / Today's Matches) ───────
+// ─── Premium gate for full pages (Smart Match / Today's Matches) ─────────────
+// No pitch card here anymore — a non-premium user landing on a premium page is
+// sent straight to /premium, which is the single conversion surface.
 export function PremiumPitch({ icon, title, description }: { icon?: ReactNode; title: string; description: string }) {
+  void icon; void title; void description; // kept for call-site compatibility
   const navigate = useNavigate();
-  return (
-    <div style={{
-      border: '1px solid var(--border)', borderRadius: 16,
-      background: 'var(--bg-surface)', padding: 'clamp(24px, 5vw, 40px)',
-      maxWidth: 480, margin: '0 auto', textAlign: 'center',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
-    }}>
-      <div style={{
-        width: 56, height: 56, borderRadius: 16, background: 'var(--acid-soft)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--acid)',
-      }}>
-        {icon || <Crown size={26} />}
-      </div>
-      <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.4rem, 3vw, 1.75rem)', color: 'var(--text-primary)', margin: 0 }}>
-        {title}
-      </h2>
-      <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, margin: 0, maxWidth: 400 }}>
-        {description}
-      </p>
-      <PremiumFeatureBullets />
-      <button
-        type="button"
-        onClick={() => navigate('/premium')}
-        style={{
-          width: '100%', height: 46, marginTop: 4,
-          background: 'var(--acid)', color: '#fff', border: 'none', borderRadius: 12,
-          fontFamily: 'inherit', fontSize: '0.92rem', fontWeight: 700, cursor: 'pointer',
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        }}
-      >
-        <Crown size={16} /> {PREMIUM_PRICE_LABEL}
-      </button>
-      <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, margin: '2px 0' }}>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>or enter a promo code</span>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
-      <PromoCodeForm />
-    </div>
-  );
+  useEffect(() => {
+    navigate('/premium', { replace: true });
+  }, [navigate]);
+  return null;
 }
 
 // ─── The modal itself ────────────────────────────────────────────────────────

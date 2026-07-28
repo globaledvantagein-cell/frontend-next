@@ -15,7 +15,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@/compat/router';
 import { Crown, Check, Shield, Lock, CreditCard, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { redeemPromoCode, ApiError } from '../utils/jobApi';
+import { redeemPromoCode, recordPaymentIntent, ApiError } from '../utils/jobApi';
 import { track } from '../utils/analytics';
 import { Spinner } from '../components/ui';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -124,19 +124,38 @@ export default function PremiumCheckout() {
   };
 
   const handleConfirm = async () => {
-    if (!promoApplied || !promoCode.trim() || confirming || confirmed) return;
-    setConfirming(true);
-    setConfirmError(null);
-    try {
-      await redeemPromoCode(promoCode.trim());
-      track('premium_activated', { source: 'checkout', method: 'promo' });
-      await refreshUsage();
-      setConfirmed(true);
-      setTimeout(() => nav('/jobs'), 2000);
-    } catch (err) {
-      const body = err instanceof ApiError ? err.body : null;
-      setConfirmError(body?.message || (err instanceof Error ? err.message : 'Payment could not be completed.'));
+    if (confirming || confirmed) return;
+
+    // ── Promo path — the real (beta) activation flow ──
+    if (promoApplied && promoCode.trim()) {
+      setConfirming(true);
+      setConfirmError(null);
+      try {
+        await redeemPromoCode(promoCode.trim());
+        track('premium_activated', { source: 'checkout', method: 'promo' });
+        await refreshUsage();
+        setConfirmed(true);
+        setTimeout(() => nav('/jobs'), 2000);
+      } catch (err) {
+        const body = err instanceof ApiError ? err.body : null;
+        setConfirmError(body?.message || (err instanceof Error ? err.message : 'Payment could not be completed.'));
+        setConfirming(false);
+      }
+      return;
+    }
+
+    // ── Card path — billing isn't live; record the payment attempt
+    // (willingness-to-pay signal) and decline gracefully. Card details
+    // never leave the browser.
+    if (cardComplete) {
+      setConfirming(true);
+      setConfirmError(null);
+      track('payment_attempt_card', { source: 'checkout' });
+      try { await recordPaymentIntent(); } catch { /* metric only — never block */ }
+      // Brief processing delay so the decline reads as a real gateway response.
+      await new Promise(r => setTimeout(r, 1400));
       setConfirming(false);
+      setConfirmError("Card payments couldn't be processed right now. Please try again later, or use a promo code if you have one.");
     }
   };
 
@@ -185,33 +204,44 @@ export default function PremiumCheckout() {
   }
 
   // ── Shared pieces ───────────────────────────────────────────────────────
+  // The plan card is styled as a dark "membership card" in the same navy +
+  // gold language as the premium invite email, so inbox → checkout reads as
+  // one continuous brand moment. Fixed colors (not theme vars) on purpose —
+  // like the email header, it stays identical in light and dark themes.
+  const gold = '#d4a94a';
+  const cardMuted = '#8a94a6';
   const planSummary = (
     <div style={{
-      background: 'var(--surface-solid)', border: '1.25px solid var(--border)',
-      borderRadius: 16, padding: 24, boxShadow: 'var(--shadow-md)',
+      background: 'linear-gradient(165deg, #131c29 0%, #0f1620 55%, #0c1219 100%)',
+      border: '1px solid rgba(212, 169, 74, 0.28)',
+      borderRadius: 16, padding: '20px 20px 18px', boxShadow: 'var(--shadow-lg)',
+      position: 'relative', overflow: 'hidden',
     }}>
+      {/* Gold hairline across the top — mirrors the email header rule. */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
+
       <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 6,
-        fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
-        background: 'var(--acid-soft)', color: 'var(--acid)', padding: '4px 10px', borderRadius: 999,
+        fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+        color: gold,
       }}>
-        <Crown size={13} /> Premium
+        <Crown size={13} /> Premium · Early access
       </span>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 16 }}>
-        <span style={{ fontSize: '2.4rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em', lineHeight: 1 }}>{PLAN_PRICE}</span>
-        <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>/ 3 months</span>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 12 }}>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.15rem', fontWeight: 700, color: '#f5f2ea', letterSpacing: '-0.01em', lineHeight: 1 }}>{PLAN_PRICE}</span>
+        <span style={{ fontSize: '0.88rem', color: cardMuted }}>/ 6 months</span>
       </div>
-      <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>~€5.00/month</p>
+      <p style={{ margin: '5px 0 0', fontSize: '0.78rem', color: gold, letterSpacing: '0.02em' }}>~€2.50 a month</p>
 
-      <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '14px 0 12px' }} />
 
       {/* Features — collapsible on mobile. */}
       {(!isMobile || showFeatures) && (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 11 }}>
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
           {FEATURES.map((f, i) => (
-            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.86rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-              <span style={{ color: 'var(--acid)', flexShrink: 0, marginTop: 1 }}><Check size={15} /></span>
+            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.85rem', color: '#c7d0dd', lineHeight: 1.45 }}>
+              <span style={{ color: gold, flexShrink: 0, marginTop: 1 }}><Check size={14} /></span>
               {f}
             </li>
           ))}
@@ -221,23 +251,23 @@ export default function PremiumCheckout() {
         <button
           type="button"
           onClick={() => setShowFeatures(s => !s)}
-          style={{ marginTop: showFeatures ? 14 : 0, background: 'none', border: 'none', color: 'var(--acid)', fontFamily: 'inherit', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+          style={{ marginTop: showFeatures ? 12 : 0, background: 'none', border: 'none', color: gold, fontFamily: 'inherit', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
         >
           {showFeatures ? 'Hide features' : 'See features'}
         </button>
       )}
 
-      <div style={{ height: 1, background: 'var(--border)', margin: '18px 0' }} />
+      <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '12px 0' }} />
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: '0.8rem', color: cardMuted }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <Shield size={14} style={{ color: 'var(--acid)', flexShrink: 0 }} /> 30-day money-back guarantee
+          <Shield size={13} style={{ color: gold, flexShrink: 0 }} /> 30-day money-back guarantee
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <RefreshCw size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> Cancel anytime
+          <RefreshCw size={13} style={{ flexShrink: 0 }} /> Cancel anytime
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <Lock size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> Secure checkout
+          <Lock size={13} style={{ flexShrink: 0 }} /> Secure checkout
         </span>
       </div>
     </div>
@@ -258,7 +288,7 @@ export default function PremiumCheckout() {
 
   const paymentForm = (
     <div>
-      <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' }}>Payment method</h2>
+      <h2 style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 10px' }}>Payment method</h2>
 
       {/* Connected card group (Stripe-style) — card number on top, expiry + CVV below. */}
       <div style={{ border: `1px solid ${cardGroupInvalid ? 'var(--danger)' : cardFocused ? 'var(--acid)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', transition: 'border-color 0.15s', background: 'var(--bg-surface, var(--surface-solid))' }}>
@@ -327,14 +357,14 @@ export default function PremiumCheckout() {
       </p>
 
       {/* "or" divider */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
         <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>or</span>
         <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
 
       {/* Promo code entry — the supported billing path during beta. */}
-      <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 10px' }}>Have a promo code?</h2>
+      <h2 style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 10px' }}>Promo code</h2>
       <div style={{ display: 'flex', gap: 8 }}>
         <input
           type="text" autoComplete="off"
@@ -365,9 +395,9 @@ export default function PremiumCheckout() {
       </div>
 
       {/* Order summary */}
-      <div style={{ marginTop: 20, border: '1px solid var(--border)', borderRadius: 12, padding: 16, background: 'var(--bg-surface-2)' }}>
+      <div style={{ marginTop: 14, border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: 'var(--bg-surface-2)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-          <span>Premium — 3 months</span>
+          <span>Premium — 6 months</span>
           {promoApplied ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
               <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{PLAN_PRICE}</span>
@@ -391,14 +421,14 @@ export default function PremiumCheckout() {
     <button
       type="button"
       onClick={handleConfirm}
-      disabled={!promoApplied || confirming || confirmed}
-      title={!promoApplied ? 'Enter a promo code during beta' : undefined}
+      disabled={(!promoApplied && !cardComplete) || confirming || confirmed}
+      title={!promoApplied && !cardComplete ? 'Enter payment details or a promo code' : undefined}
       style={{
         width: '100%', height: 48, borderRadius: 10, border: 'none',
         background: confirmed ? 'var(--success)' : 'var(--acid)', color: '#fff',
         fontFamily: 'inherit', fontSize: 15, fontWeight: 500,
-        cursor: !promoApplied || confirming || confirmed ? 'not-allowed' : 'pointer',
-        opacity: !promoApplied ? 0.55 : 1,
+        cursor: (!promoApplied && !cardComplete) || confirming || confirmed ? 'not-allowed' : 'pointer',
+        opacity: !promoApplied && !cardComplete ? 0.55 : 1,
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
         transition: 'background 0.2s, opacity 0.2s',
       }}
@@ -411,13 +441,10 @@ export default function PremiumCheckout() {
     </button>
   );
 
-  // Shown under the button when the card is filled but card billing hasn't
-  // opened yet — steers the user to the promo path without blocking silently.
-  const betaNotice = !promoApplied && cardComplete && !confirmed ? (
-    <p style={{ margin: '8px 0 0', fontSize: '0.76rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-      Beta: use promo code for access
-    </p>
-  ) : null;
+  // No pre-click promo steering: the card path must look live so the
+  // "Confirm payment" click is a clean willingness-to-pay signal. The
+  // decline message after the click points to the promo code instead.
+  const betaNotice = null;
 
   const legalNotice = (
     <p style={{ margin: '12px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
@@ -432,7 +459,7 @@ export default function PremiumCheckout() {
   ) : null;
 
   const trustFooter = (
-    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 16 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 10 }}>
       {[
         { icon: <Lock size={13} />, text: 'Secure checkout' },
         { icon: <RefreshCw size={13} />, text: 'Cancel anytime' },
@@ -449,11 +476,11 @@ export default function PremiumCheckout() {
   const rightColumn = (
     <div style={{
       background: 'var(--surface-solid)', border: '1.25px solid var(--border)',
-      borderRadius: 16, padding: isMobile ? 20 : 28, boxShadow: 'var(--shadow-md)',
+      borderRadius: 16, padding: isMobile ? 20 : 20, boxShadow: 'var(--shadow-md)',
     }}>
       {paymentForm}
       {!isMobile && (
-        <div style={{ marginTop: 20 }}>
+        <div style={{ marginTop: 14 }}>
           {confirmButton}
           {betaNotice}
           {confirmErrorEl}
@@ -465,16 +492,16 @@ export default function PremiumCheckout() {
   );
 
   return (
-    <div style={{ background: 'var(--paper)', minHeight: '90vh', padding: isMobile ? '20px 16px 0' : '32px 24px 48px' }}>
+    <div style={{ background: 'var(--paper)', minHeight: '90vh', padding: isMobile ? '20px 16px 0' : '18px 24px 20px' }}>
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
-        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.6rem, 3vw, 2.1rem)', color: 'var(--text-primary)', margin: '0 0 6px' }}>
-          Upgrade to Premium
+        <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.4rem, 2.4vw, 1.7rem)', color: 'var(--text-primary)', margin: '0 0 2px' }}>
+          Upgrade to <em style={{ fontStyle: 'italic', color: '#b98a2e' }}>Premium</em>
         </h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 24px' }}>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: '0 0 14px' }}>
           Unlock unlimited access to every English-speaking role in Germany.
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1.15fr', gap: isMobile ? 16 : 28, alignItems: 'start' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1.15fr', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
           {planSummary}
           {rightColumn}
         </div>

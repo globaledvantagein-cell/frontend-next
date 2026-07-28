@@ -209,6 +209,14 @@ export function clearUsageCache(): void {
     usageCache = null;
 }
 
+/**
+ * POST /api/auth/payment-intent — records that the user attempted a card
+ * payment (willingness-to-pay signal during beta). Sends NO card data.
+ */
+export async function recordPaymentIntent(): Promise<{ accepted: boolean }> {
+    return apiPost('/api/auth/payment-intent');
+}
+
 /** POST /api/auth/redeem-promo. Throws ApiError (with .body) on an invalid code. */
 export async function redeemPromoCode(code: string): Promise<{ success: boolean; premiumUntil: string | null; plan: string }> {
     return apiPost('/api/auth/redeem-promo', { code });
