@@ -32,6 +32,24 @@ const EMPLOYMENT_SCHEMA: Record<string, string> = {
   internship: 'INTERN',
 };
 
+// Legacy display-string fallback → Google enum, for jobs missing filterEmployment.
+const EMPLOYMENT_DISPLAY_SCHEMA: Record<string, string> = {
+  'full-time': 'FULL_TIME', 'full time': 'FULL_TIME', fulltime: 'FULL_TIME', permanent: 'FULL_TIME',
+  'part-time': 'PART_TIME', 'part time': 'PART_TIME', parttime: 'PART_TIME',
+  contract: 'CONTRACTOR', contractor: 'CONTRACTOR', freelance: 'CONTRACTOR',
+  internship: 'INTERN', intern: 'INTERN',
+};
+
+// Normalize any date-ish string to ISO 8601; undefined if absent/invalid so we
+// never emit an invalid datePosted/validThrough (Google rejects those).
+function toIsoDate(value?: string | null): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
+const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+
 /**
  * schema.org JobPosting — required for Google for Jobs eligibility and the
  * primary signal AI answer engines (AEO/GEO) use to cite job listings.
@@ -40,22 +58,30 @@ const EMPLOYMENT_SCHEMA: Record<string, string> = {
 export function jobPostingJsonLd(
   job: {
     _id: string; JobTitle: string; Company: string; Location?: string;
-    Description?: string; PostedDate?: string | null; scrapedAt?: string;
+    Description?: string; EmploymentType?: string | null;
+    PostedDate?: string | null; scrapedAt?: string;
     filterEmployment?: string | null; filterWorkplace?: string | null;
     filterSalaryMin?: number | null; filterSalaryMax?: number | null;
   },
   siteUrl: string,
 ) {
+  // Google for Jobs requires the FULL job description, matching the visible page
+  // content. Strip any residual HTML to plain text; never truncate and never
+  // append "sign up" boilerplate (a schema/content mismatch drops the listing).
+  const fullDescription = (job.Description || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    || `${job.JobTitle} at ${job.Company} — an English-speaking role in Germany. No German required.`;
+
+  const datePosted = toIsoDate(job.PostedDate || job.scrapedAt);
+
   const data: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'JobPosting',
     title: job.JobTitle,
-    // Deliberately a TEASER, not the full JD — full descriptions stay behind
-    // the signup/premium gate. 250 chars is enough for search/AI snippets
-    // without giving the whole posting away in page source.
-    description: ((job.Description || '').replace(/\s+/g, ' ').trim().slice(0, 250)
-      || `${job.JobTitle} at ${job.Company} — an English-speaking role in Germany. No German required.`) + ' … Sign up to view the full description.',
-    datePosted: job.PostedDate || job.scrapedAt || undefined,
+    description: fullDescription,
+    ...(datePosted ? { datePosted } : {}),
     hiringOrganization: { '@type': 'Organization', name: job.Company },
     jobLocation: {
       '@type': 'Place',
@@ -68,7 +94,19 @@ export function jobPostingJsonLd(
     url: `${siteUrl}/jobs/${job._id}`,
     directApply: true,
   };
-  const employmentType = job.filterEmployment ? EMPLOYMENT_SCHEMA[job.filterEmployment] : undefined;
+
+  // validThrough: no explicit expiry on job docs, so use PostedDate + 60 days.
+  // Tells Google when to auto-drop the listing. Omit if PostedDate is missing.
+  if (job.PostedDate) {
+    const posted = new Date(job.PostedDate);
+    if (!isNaN(posted.getTime())) {
+      data.validThrough = new Date(posted.getTime() + SIXTY_DAYS_MS).toISOString();
+    }
+  }
+
+  const employmentType = (job.filterEmployment && EMPLOYMENT_SCHEMA[job.filterEmployment])
+    || (job.EmploymentType && EMPLOYMENT_DISPLAY_SCHEMA[job.EmploymentType.toLowerCase().trim()])
+    || undefined;
   if (employmentType) data.employmentType = employmentType;
   if (job.filterWorkplace === 'remote') {
     data.jobLocationType = 'TELECOMMUTE';

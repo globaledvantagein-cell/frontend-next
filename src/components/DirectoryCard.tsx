@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useNavigate } from '@/compat/router';
 import { MapPin, ArrowUpRight } from 'lucide-react';
 import { Badge } from './ui';
 import type { ICompany } from '../types';
@@ -11,15 +12,22 @@ interface Props {
   adminActions?: ReactNode;
   /** Homepage carousel hides location so cards stay uniform height. */
   hideLocation?: boolean;
+  /**
+   * When set, the card navigates to this INTERNAL path (client-side) instead of
+   * opening the employer's external site — keeps homepage link equity on-site.
+   */
+  internalHref?: string;
 }
 
-export default function CompanyCard({ company, adminActions, hideLocation }: Props) {
+export default function CompanyCard({ company, adminActions, hideLocation, internalHref }: Props) {
+  const navigate = useNavigate();
   const [imgErr, setImgErr] = useState(false);
   const [hov, setHov] = useState(false);
 
   const host = (d: string) => { const s = (d || '').trim(); try { return new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`).hostname; } catch { return s.replace(/^https?:\/\//i, '').split('/')[0]; } };
   const visit = () => {
     if (adminActions) return; // Don't open link in admin mode
+    if (internalHref) { navigate(internalHref); return; }
     let u = (company.domain || '').trim(); if (!/^https?:\/\//i.test(u)) u = `https://${u}`; window.open(u, '_blank');
   };
 

@@ -2,7 +2,7 @@
 // backend (server-to-server) using API_ORIGIN. NEVER import this into a client
 // component — it has no auth token and is meant for public SEO data only.
 
-import type { IJob } from '@/types';
+import type { IJob, ICompany } from '@/types';
 
 const API_ORIGIN = process.env.API_ORIGIN || 'http://localhost:3000';
 
@@ -47,15 +47,15 @@ export async function fetchJobs(params: {
   return data ?? { jobs: [], totalJobs: 0 };
 }
 
-/** GET /api/jobs/public-bait — array of 9 newest teaser jobs. */
-export async function fetchBaitJobs(): Promise<IJob[]> {
-  const data = await getJson<IJob[]>('/api/jobs/public-bait');
+/** GET /api/jobs/public-bait — array of 9 newest teaser jobs. Pass `revalidate` to cache (ISR). */
+export async function fetchBaitJobs(revalidate?: number): Promise<IJob[]> {
+  const data = await getJson<IJob[]>('/api/jobs/public-bait', revalidate);
   return Array.isArray(data) ? data : [];
 }
 
-/** GET /api/jobs/directory — company directory stats. */
-export async function fetchDirectory(): Promise<Record<string, unknown>[]> {
-  const data = await getJson<Record<string, unknown>[]>('/api/jobs/directory');
+/** GET /api/jobs/directory — company directory stats. Pass `revalidate` to cache (ISR). */
+export async function fetchDirectory(revalidate?: number): Promise<ICompany[]> {
+  const data = await getJson<ICompany[]>('/api/jobs/directory', revalidate);
   return Array.isArray(data) ? data : [];
 }
 

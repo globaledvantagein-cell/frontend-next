@@ -144,7 +144,10 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
 
     const params = buildSearchParams(committedFilters, 1);
 
-    apiGet<{ jobs?: IJob[]; totalJobs?: number }>(`/api/jobs?${params}`, { signal: ctrl.signal, noAuth: true })
+    // MUST send auth headers: the backend strips premium-gated filters
+    // (workplace/experience/employment/visa/relocation/salary/sort=salary) for
+    // anonymous requests. With noAuth, even premium users got unfiltered results.
+    apiGet<{ jobs?: IJob[]; totalJobs?: number }>(`/api/jobs?${params}`, { signal: ctrl.signal })
       .then(data => {
         if (ctrl.signal.aborted) return;
         const batch = Array.isArray(data?.jobs) ? data.jobs : [];
@@ -175,7 +178,7 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
 
     try {
       const data = await apiGet<{ jobs?: IJob[]; totalJobs?: number }>(
-        `/api/jobs?${params}`, { noAuth: true }
+        `/api/jobs?${params}`, // auth headers required — see page-1 fetch above
       );
       const batch = Array.isArray(data?.jobs) ? data.jobs : [];
       const total = Number(data?.totalJobs) || 0;

@@ -95,7 +95,7 @@ export const darkVars: Record<string, string> = {
   '--muted-ink': '#BDBDBD',
   '--subtle-ink': '#9B9B9B',
 
-  '--border': 'rgba(245,245,245,0.14)',
+  '--border': 'rgba(245,245,245,0.20)',
   '--border-strong': 'rgba(245,245,245,0.22)',
 
   '--surface': 'rgba(18,20,26,0.72)',

@@ -5,14 +5,36 @@
  * + the mobile filter bottom sheet. Renders the shared filter dropdowns
  * from ./filters/jobFilterSelects.
  */
+import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from './ui';
 import { FILTER_CONTROL_STYLE, type FilterState, type FilterDropdownOption } from '../hooks/useJobFilters';
-import type { IFacetCounts } from '../hooks/jobFilterTypes';
-import { SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs, PremiumBadge } from './filters/jobFilterSelects';
+import { WORKPLACE_OPTIONS, EXPERIENCE_OPTIONS, EMPLOYMENT_OPTIONS, type IFacetCounts } from '../hooks/jobFilterTypes';
+import {
+  SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs, PremiumBadge,
+  CategorySelect, DateSelect, CompanySelect,
+} from './filters/jobFilterSelects';
 
 // Pill-shaped search field style — matches the .filter-pill control language.
 const searchPillStyle = { borderRadius: 999 } as const;
+
+// value → label maps for the active-filter pills.
+const WORKPLACE_LABEL: Record<string, string> = Object.fromEntries(WORKPLACE_OPTIONS.map(o => [o.value, o.label] as [string, string]));
+const EXPERIENCE_LABEL: Record<string, string> = Object.fromEntries(EXPERIENCE_OPTIONS.map(o => [o.value, o.label] as [string, string]));
+const EMPLOYMENT_LABEL: Record<string, string> = Object.fromEntries(EMPLOYMENT_OPTIONS.map(o => [o.value, o.label] as [string, string]));
+
+function fmtSalary(s: string): string {
+  const n = parseInt(s, 10);
+  if (!Number.isFinite(n)) return '';
+  return n >= 1000 ? `€${Math.round(n / 1000)}k` : `€${n}`;
+}
+function salaryPill(min: string, max: string): string {
+  const lo = fmtSalary(min);
+  const hi = fmtSalary(max);
+  if (lo && hi) return `${lo}–${hi}`;
+  if (lo) return `${lo}+`;
+  return `≤${hi}`;
+}
 
 interface FilterBarProps {
   filters: FilterState;
@@ -51,11 +73,58 @@ export function DashboardFilterBar({
   isPremium = true,
   onPremiumRequired,
 }: FilterBarProps) {
+  const [panelOpen, setPanelOpen] = useState(false);
+  // Anchor for the floating "More filters" popover — click-outside + Escape close it.
+  const popoverAnchorRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      if (popoverAnchorRef.current?.contains(target)) return;
+      // FilterDropdown renders its option list through createPortal() into
+      // document.body, so an option click is physically OUTSIDE this popover's
+      // DOM subtree. Without this guard we'd close (and unmount) the popover on
+      // pointerdown, destroying the option before its click could fire — the
+      // dropdowns would silently do nothing. Same `[data-dropdown-id]` escape
+      // hatch FilterDropdown's own outside-click handler uses.
+      if (target.closest?.('[data-dropdown-id], .bottom-sheet, .bottom-sheet-overlay')) return;
+      setPanelOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setPanelOpen(false); };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [panelOpen]);
+
   const premiumProps = { locked: !isPremium, onPremiumRequired };
   const selectsProps = { filters, setFilters, companyOptions, categoryOptions, openDropdown, setOpenDropdown };
   const dropdownProps = { filters, setFilters, openDropdown, setOpenDropdown, facetCounts, ...premiumProps };
   const toggleProps = { filters, setFilters, facetCounts, ...premiumProps };
+  const baseSelect = { filters, setFilters, openDropdown, setOpenDropdown };
 
+  // ── Active advanced-filter pills (everything not in the always-visible row) ─
+  const removeArr = (field: 'workplace' | 'experience' | 'employment' | 'company', val: string) =>
+    setFilters(prev => ({ ...prev, [field]: prev[field].filter(v => v !== val) }));
+  const setBool = (field: 'visa' | 'relocation' | 'hasSalary', v: boolean) =>
+    setFilters(prev => ({ ...prev, [field]: v }));
+  const clearSalary = () => setFilters(prev => ({ ...prev, salaryMin: '', salaryMax: '' }));
+
+  const advancedPills: { key: string; label: string; remove: () => void }[] = [];
+  filters.workplace.forEach(v => advancedPills.push({ key: 'wp_' + v, label: WORKPLACE_LABEL[v] || v, remove: () => removeArr('workplace', v) }));
+  filters.experience.forEach(v => advancedPills.push({ key: 'ex_' + v, label: EXPERIENCE_LABEL[v] || v, remove: () => removeArr('experience', v) }));
+  filters.employment.forEach(v => advancedPills.push({ key: 'em_' + v, label: EMPLOYMENT_LABEL[v] || v, remove: () => removeArr('employment', v) }));
+  filters.company.forEach(v => advancedPills.push({ key: 'co_' + v, label: v, remove: () => removeArr('company', v) }));
+  if (filters.visa) advancedPills.push({ key: 'visa', label: 'Visa', remove: () => setBool('visa', false) });
+  if (filters.relocation) advancedPills.push({ key: 'reloc', label: 'Relocation', remove: () => setBool('relocation', false) });
+  if (filters.hasSalary) advancedPills.push({ key: 'hassal', label: 'Has salary', remove: () => setBool('hasSalary', false) });
+  if (filters.salaryMin.trim() || filters.salaryMax.trim()) advancedPills.push({ key: 'sal', label: salaryPill(filters.salaryMin, filters.salaryMax), remove: clearSalary });
+  const advancedCount = advancedPills.length;
+
+  // Mobile-only search (full width; the desktop search is capped at 280).
   const searchInput = (
     <div className="relative" style={{ flex: 1, minWidth: 0 }}>
       <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
@@ -74,30 +143,38 @@ export function DashboardFilterBar({
     </span>
   );
 
-  // Ghost text button — no border. One less box in an already bordered row;
-  // the danger hover color carries the meaning.
-  const clearAll = hasActiveFilters ? (
+  // "More filters" gateway button. Highlighted (acid scheme) while the popover
+  // is open OR when any advanced filter is active — then it reads "Filters (N)".
+  const moreActive = panelOpen || advancedCount > 0;
+  const moreFiltersBtn = (
     <button
-      onClick={clearFilters}
-      className="filter-pill"
+      type="button"
+      onClick={() => setPanelOpen(o => !o)}
+      aria-expanded={panelOpen}
       style={{
-        height: 34, paddingInline: 10,
-        border: 'none', background: 'transparent',
-        color: 'var(--text-muted)',
-        fontSize: '0.74rem', fontWeight: 500,
-        cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
-        whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'inherit',
+        height: 34, padding: '0 14px', flexShrink: 0, borderRadius: 8,
+        border: '1px solid', borderColor: moreActive ? 'var(--acid)' : 'var(--border)',
+        background: moreActive ? 'var(--acid-soft)' : 'transparent',
+        color: moreActive ? 'var(--acid)' : 'var(--text-secondary)',
+        fontSize: '0.78rem', fontWeight: moreActive ? 600 : 400, cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', fontFamily: 'inherit',
       }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
     >
-      <X size={11} /> Clear all
+      {advancedCount > 0 && <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'var(--acid)', flexShrink: 0 }} />}
+      <SlidersHorizontal size={14} />
+      {advancedCount > 0 ? `Filters (${advancedCount})` : 'More filters'}
     </button>
-  ) : null;
+  );
+
+  const pillStyle: React.CSSProperties = {
+    fontSize: '0.72rem', background: 'var(--acid-soft)', border: '1px solid var(--acid)',
+    borderRadius: 16, padding: '2px 8px 2px 10px', color: 'var(--acid)',
+    display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap',
+  };
 
   return (
     <>
-      {/* Mobile */}
+      {/* Mobile — search + "Filters" button that opens the bottom sheet (unchanged). */}
       <div className="filter-bar-mobile">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -120,30 +197,10 @@ export function DashboardFilterBar({
         </div>
       </div>
 
-      {/* Tablet */}
-      <div className="filter-bar-tablet">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            {searchInput}
-            <SortSelect {...selectsProps} {...premiumProps} width={120} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 8, flexWrap: 'wrap' }}>
-            <FilterSelects {...selectsProps} />
-            <AttributeSelects {...dropdownProps} />
-            <ToggleChips {...toggleProps} />
-            <SalaryRangeInputs {...toggleProps} />
-            <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-              {countLabel}{clearAll}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Desktop — one flowing row of pills. Search anchors the left, sort +
-          count + clear anchor the right; everything between wraps naturally.
-          No dividers: the uniform pill shape IS the grouping. */}
-      <div className="filter-bar-full">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, rowGap: 8, flexWrap: 'wrap' }}>
+      {/* Tablet + Desktop (≥768px) — single row + "More filters" panel. */}
+      <div className="filter-bar-full" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0, width: '100%' }}>
+        {/* The always-visible single row. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
           <div className="relative" style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}>
             <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
             <Input
@@ -153,15 +210,88 @@ export function DashboardFilterBar({
               style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, width: '100%', paddingLeft: 34, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
             />
           </div>
-          <FilterSelects {...selectsProps} />
-          <AttributeSelects {...dropdownProps} />
-          <ToggleChips {...toggleProps} />
-          <SalaryRangeInputs {...toggleProps} />
-          <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <CategorySelect {...baseSelect} categoryOptions={categoryOptions} />
+          <DateSelect {...baseSelect} />
+
+          {/* "More filters" button + its floating popover (anchored, overlays). */}
+          <div ref={popoverAnchorRef} style={{ position: 'relative', flexShrink: 0 }}>
+            {moreFiltersBtn}
+            {panelOpen && (
+              <div
+                role="dialog"
+                aria-label="More filters"
+                style={{
+                  position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 40,
+                  background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 12,
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '16px 20px',
+                  minWidth: 600, maxWidth: 800,
+                }}
+              >
+                {/* Row 1 — Workplace / Experience / Employment / Company */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
+                  <AttributeSelects {...dropdownProps} />
+                  <CompanySelect {...baseSelect} companyOptions={companyOptions} />
+                  {!isPremium && <PremiumBadge />}
+                </div>
+
+                {/* Row 2 — Visa / Relocation / Has salary · divider · Salary range */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                  <ToggleChips {...toggleProps} />
+                  <div style={{ width: 1, height: 24, background: 'var(--border)', flexShrink: 0, margin: '0 4px' }} />
+                  <SalaryRangeInputs {...toggleProps} />
+                </div>
+
+                {/* Bottom actions — Clear filters (when active) + Done */}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 12, marginTop: 14 }}>
+                  {hasActiveFilters && (
+                    <button
+                      type="button" onClick={clearFilters}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.76rem', fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontFamily: 'inherit' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+                    >
+                      <X size={11} /> Clear filters
+                    </button>
+                  )}
+                  <button
+                    type="button" onClick={() => setPanelOpen(false)}
+                    style={{ background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: 8, padding: '6px 20px', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
             <SortSelect {...selectsProps} {...premiumProps} width={140} />
-            {countLabel}{clearAll}
+            {countLabel}
           </div>
         </div>
+
+        {/* Active-filter pills (shown when the popover is closed). */}
+        {!panelOpen && advancedCount > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 10 }}>
+            {advancedPills.map(p => (
+              <span key={p.key} style={pillStyle}>
+                {p.label}
+                <button type="button" onClick={p.remove} aria-label={`Remove ${p.label} filter`}
+                  style={{ background: 'none', border: 'none', color: 'var(--acid)', cursor: 'pointer', padding: 0, marginLeft: 2, fontSize: '1rem', lineHeight: 1, display: 'inline-flex' }}>
+                  ×
+                </button>
+              </span>
+            ))}
+            <button
+              type="button" onClick={clearFilters}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', marginLeft: 2 }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--danger)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; }}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

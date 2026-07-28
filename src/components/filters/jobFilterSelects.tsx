@@ -7,6 +7,7 @@
  */
 import { Lock } from 'lucide-react';
 import FilterDropdown from '../FilterDropdown';
+import { track } from '../../utils/analytics';
 import {
   SORT_DROPDOWN_OPTIONS,
   DATE_DROPDOWN_OPTIONS,
@@ -73,7 +74,7 @@ export function PremiumBadge() {
  * opacity, non-interactive) with a small lock badge, and a transparent overlay
  * intercepts clicks to trigger the upgrade modal instead of opening the control.
  */
-function LockedControl({ locked, onPremiumRequired, children }: PremiumGateProps & { children: React.ReactNode }) {
+function LockedControl({ locked, onPremiumRequired, filterName, children }: PremiumGateProps & { filterName?: string; children: React.ReactNode }) {
   if (!locked) return <>{children}</>;
   return (
     <div style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
@@ -92,7 +93,7 @@ function LockedControl({ locked, onPremiumRequired, children }: PremiumGateProps
       <button
         type="button"
         aria-label="Premium feature — upgrade to use this filter"
-        onClick={onPremiumRequired}
+        onClick={() => { track('locked_filter_clicked', { filter: filterName }); onPremiumRequired?.(); }}
         style={{ position: 'absolute', inset: 0, zIndex: 3, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
       />
     </div>
@@ -126,54 +127,82 @@ export function SortSelect({
   );
 }
 
+// Individual dropdowns — extracted so the single-row filter bar can place
+// Category + Date inline while Company moves into the "More filters" panel.
+type BaseSelect = Pick<SelectsProps, 'filters' | 'setFilters' | 'openDropdown' | 'setOpenDropdown'> & { widthOverride?: number | string };
+
+export function CompanySelect({
+  filters, setFilters, companyOptions, openDropdown, setOpenDropdown, widthOverride,
+}: BaseSelect & { companyOptions: FilterDropdownOption[] }) {
+  return (
+    <FilterDropdown
+      id="company"
+      label="Company"
+      value=""
+      options={companyOptions}
+      onChange={() => {}}
+      multiSelect
+      selectedValues={filters.company}
+      onMultiChange={vals => setFilters(prev => ({ ...prev, company: vals }))}
+      openId={openDropdown}
+      onOpenChange={setOpenDropdown}
+      active={filters.company.length > 0}
+      width={widthOverride ?? 160}
+      searchable
+    />
+  );
+}
+
+export function CategorySelect({
+  filters, setFilters, categoryOptions, openDropdown, setOpenDropdown, widthOverride,
+}: BaseSelect & { categoryOptions: FilterDropdownOption[] }) {
+  return (
+    <FilterDropdown
+      id="category"
+      label="Category"
+      value=""
+      options={categoryOptions}
+      onChange={() => {}}
+      multiSelect
+      selectedValues={filters.category}
+      onMultiChange={vals => setFilters(prev => ({ ...prev, category: vals }))}
+      openId={openDropdown}
+      onOpenChange={setOpenDropdown}
+      active={filters.category.length > 0}
+      width={widthOverride ?? 180}
+    />
+  );
+}
+
+export function DateSelect({
+  filters, setFilters, openDropdown, setOpenDropdown, widthOverride,
+}: BaseSelect) {
+  return (
+    <FilterDropdown
+      id="date"
+      label="Date"
+      value={filters.date}
+      options={DATE_DROPDOWN_OPTIONS as unknown as FilterDropdownOption[]}
+      onChange={val => setFilters(prev => ({ ...prev, date: val as DateFilter }))}
+      openId={openDropdown}
+      onOpenChange={setOpenDropdown}
+      active={filters.date !== 'All'}
+      width={widthOverride ?? 120}
+    />
+  );
+}
+
+// Composition kept for the mobile bottom sheet (unchanged behavior).
 export function FilterSelects({
   filters, setFilters, companyOptions, categoryOptions,
   openDropdown, setOpenDropdown, widthOverride,
 }: SelectsProps & { widthOverride?: number | string }) {
+  const base = { filters, setFilters, openDropdown, setOpenDropdown, widthOverride };
   return (
     <>
-      <FilterDropdown
-        id="company"
-        label="Company"
-        value=""
-        options={companyOptions}
-        onChange={() => {}}
-        multiSelect
-        selectedValues={filters.company}
-        onMultiChange={vals => setFilters(prev => ({ ...prev, company: vals }))}
-        openId={openDropdown}
-        onOpenChange={setOpenDropdown}
-        active={filters.company.length > 0}
-        width={widthOverride ?? 160}
-        searchable
-      />
-
-      <FilterDropdown
-        id="category"
-        label="Category"
-        value=""
-        options={categoryOptions}
-        onChange={() => {}}
-        multiSelect
-        selectedValues={filters.category}
-        onMultiChange={vals => setFilters(prev => ({ ...prev, category: vals }))}
-        openId={openDropdown}
-        onOpenChange={setOpenDropdown}
-        active={filters.category.length > 0}
-        width={widthOverride ?? 180}
-      />
-
-      <FilterDropdown
-        id="date"
-        label="Date"
-        value={filters.date}
-        options={DATE_DROPDOWN_OPTIONS as unknown as FilterDropdownOption[]}
-        onChange={val => setFilters(prev => ({ ...prev, date: val as DateFilter }))}
-        openId={openDropdown}
-        onOpenChange={setOpenDropdown}
-        active={filters.date !== 'All'}
-        width={widthOverride ?? 120}
-      />
+      <CompanySelect {...base} companyOptions={companyOptions} />
+      <CategorySelect {...base} categoryOptions={categoryOptions} />
+      <DateSelect {...base} />
     </>
   );
 }
@@ -187,7 +216,7 @@ export function AttributeSelects({
 }: DropdownProps & PremiumGateProps & { widthOverride?: number | string; facetCounts?: IFacetCounts | null }) {
   return (
     <>
-      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired} filterName="workplace">
         <FilterDropdown
           id="workplace"
           label="Workplace"
@@ -204,7 +233,7 @@ export function AttributeSelects({
         />
       </LockedControl>
 
-      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired} filterName="experience">
         <FilterDropdown
           id="experience"
           label="Experience"
@@ -221,7 +250,7 @@ export function AttributeSelects({
         />
       </LockedControl>
 
-      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired} filterName="employment">
         <FilterDropdown
           id="employment"
           label="Employment"
@@ -281,7 +310,7 @@ export function ToggleChip({
 export function ToggleChips({ filters, setFilters, facetCounts, locked, onPremiumRequired }: ToggleProps & PremiumGateProps & { facetCounts?: IFacetCounts | null }) {
   return (
     <>
-      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired} filterName="visa">
         <ToggleChip
           label="Visa sponsor"
           active={filters.visa}
@@ -289,7 +318,7 @@ export function ToggleChips({ filters, setFilters, facetCounts, locked, onPremiu
           onToggle={() => setFilters(prev => ({ ...prev, visa: !prev.visa }))}
         />
       </LockedControl>
-      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired} filterName="relocation">
         <ToggleChip
           label="Relocation"
           active={filters.relocation}
@@ -297,7 +326,7 @@ export function ToggleChips({ filters, setFilters, facetCounts, locked, onPremiu
           onToggle={() => setFilters(prev => ({ ...prev, relocation: !prev.relocation }))}
         />
       </LockedControl>
-      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired}>
+      <LockedControl locked={locked} onPremiumRequired={onPremiumRequired} filterName="has_salary">
         <ToggleChip
           label="Has salary"
           active={filters.hasSalary}
@@ -352,7 +381,9 @@ export function SalaryRangeInputs({
         transition: 'border-color 0.18s, background 0.18s',
       }}
     >
-      <span style={{ fontSize: '0.76rem', color: invalidRange ? 'var(--danger)' : active ? 'var(--acid)' : 'var(--text-muted)', flexShrink: 0 }}>€</span>
+      {/* Persistent label so the two inputs are self-explanatory even after
+          the placeholders disappear on typing. */}
+      <span style={{ fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.01em', marginRight: 6, whiteSpace: 'nowrap', color: invalidRange ? 'var(--danger)' : active ? 'var(--acid)' : 'var(--text-muted)', flexShrink: 0 }}>Salary (€/yr)</span>
       <input
         type="number" inputMode="numeric" min={0} max={1000000} step={1000}
         value={filters.salaryMin}

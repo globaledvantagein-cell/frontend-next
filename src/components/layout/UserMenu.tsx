@@ -21,8 +21,8 @@
  */
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Link } from '@/compat/router';
-import { LogOut, User as UserIcon, ChevronDown, Crown } from 'lucide-react';
-import { Badge } from '../ui';
+import { LogOut, User as UserIcon, ChevronDown, Crown, ArrowRight } from 'lucide-react';
+import { Badge, ProBadge } from '../ui';
 import { USER_MENU_LINKS } from './navLinks';
 import { useAuth } from '../../context/AuthContext';
 import { fetchUsageStats } from '../../utils/jobApi';
@@ -118,7 +118,9 @@ export default function UserMenu({ userName, isAdmin, onLogout }: Props) {
         onPointerUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
         onPointerLeave={e => { e.currentTarget.style.transform = 'scale(1)'; }}
       >
-        <UserIcon size={13} /> {userName}
+        {/* Premium members get a gold crown as their identity mark. */}
+        {isPremium ? <Crown size={13} style={{ color: '#FFD700' }} /> : <UserIcon size={13} />} {userName}
+        {isPremium && <ProBadge />}
         {isAdmin && <Badge variant="red" style={{ fontSize: '0.58rem', padding: '2px 6px' }}>ADMIN</Badge>}
         <ChevronDown
           size={12}
@@ -146,6 +148,37 @@ export default function UserMenu({ userName, isAdmin, onLogout }: Props) {
               : `opacity 110ms ${EASE_OUT}, transform 110ms ${EASE_OUT}`,
           }}
         >
+          {/* ── Membership card — the first thing a paying member sees ── */}
+          {premium ? (
+            <div style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+              borderRadius: 8, padding: '10px 14px', margin: '2px 2px 8px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Crown size={14} style={{ color: '#FFD700' }} />
+                <span style={{ color: '#FFD700', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.1em' }}>PRO</span>
+              </div>
+              <div style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 400, marginTop: 3 }}>
+                Unlimited access
+              </div>
+            </div>
+          ) : (
+            <Link
+              to="/premium"
+              role="menuitem"
+              onClick={close}
+              style={{
+                ...itemStyle,
+                display: 'flex', alignItems: 'center', gap: 5,
+                color: 'var(--acid)', fontWeight: 600,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--acid-soft)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            >
+              <Crown size={13} /> Upgrade to Pro <ArrowRight size={12} />
+            </Link>
+          )}
+
           {USER_MENU_LINKS.map(([path, label]) => (
             <Link
               key={path}
@@ -160,25 +193,26 @@ export default function UserMenu({ userName, isAdmin, onLogout }: Props) {
             </Link>
           ))}
 
-          {/* ── Weekly usage summary ── */}
-          <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
-          <div style={{ padding: '4px 8px 8px' }}>
-            {premium ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', fontWeight: 700, color: 'var(--acid)' }}>
-                <Crown size={14} /> Premium · Unlimited
+          {/* ── Weekly usage summary — FREE users only. Premium members have no
+                limits, so no bars: the PRO card above is their whole status. ── */}
+          {!premium && (
+            <>
+              <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
+              <div style={{ padding: '4px 8px 8px' }}>
+                {usage ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <UsageBar used={usage.jdViewsUsed} limit={usage.jdViewsLimit ?? 20} label="JD views" />
+                    <UsageBar used={usage.applyClicksUsed} limit={usage.applyClicksLimit ?? 15} label="Apply clicks" />
+                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                      Resets {resetDayLabel(usage.weekResetAt)}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="skeleton" style={{ height: 34, borderRadius: 6 }} />
+                )}
               </div>
-            ) : usage ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <UsageBar used={usage.jdViewsUsed} limit={usage.jdViewsLimit ?? 20} label="JD views" />
-                <UsageBar used={usage.applyClicksUsed} limit={usage.applyClicksLimit ?? 15} label="Apply clicks" />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                  Resets {resetDayLabel(usage.weekResetAt)}
-                </span>
-              </div>
-            ) : (
-              <div className="skeleton" style={{ height: 34, borderRadius: 6 }} />
-            )}
-          </div>
+            </>
+          )}
 
           <div style={{ height: 1, background: 'var(--border)', margin: '6px 4px' }} />
 

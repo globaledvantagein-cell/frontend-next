@@ -13,6 +13,7 @@ import { Sparkles, Upload, RotateCcw } from 'lucide-react';
 import { Container, PageHeader, Badge, Button, Alert } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { apiGet } from '../utils/jobApi';
+import { track } from '../utils/analytics';
 import { PremiumPitch } from '../components/UpgradeModal';
 import MatchProgress from '../components/MatchProgress';
 import ParsedProfileCard from '../components/ParsedProfileCard';
@@ -45,6 +46,13 @@ export default function SmartMatch() {
 
   useEffect(() => { document.title = `Smart Match · ${BRAND.appName}`; }, []);
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Funnel: a non-premium user hit the Smart Match premium wall.
+  useEffect(() => {
+    if (!authLoading && (isAdmin || usage !== null) && !isPremium) {
+      track('premium_feature_blocked', { feature: 'smart_match' });
+    }
+  }, [authLoading, isAdmin, usage, isPremium]);
 
   // Check if user has a stored profile + load cached results
   useEffect(() => {

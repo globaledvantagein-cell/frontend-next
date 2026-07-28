@@ -39,24 +39,24 @@ export const DesktopJobCard = memo(
           style={{
             border:     selected ? '1px solid var(--acid)' : '1px solid var(--border)',
             background: selected ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
-            borderRadius: 8, padding: '10px 10px',
+            borderRadius: 8, padding: '12px 14px',
             textAlign: 'left', cursor: 'pointer', width: '100%',
           }}
         >
-          <p style={{ fontSize: '0.86rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word', paddingRight: 22 }}>
+          <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word', paddingRight: 22 }}>
             {job.JobTitle}
           </p>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {job.Company} | {getDisplayLocation(job)}
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {job.Company} · {getDisplayLocation(job)} · {relativeDate(job.PostedDate || job.scrapedAt)}
           </p>
           {(showWp || salary || applied || hasVisa || hasRelocation) && (
             <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
-              {applied && <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>✓ Applied</Badge>}
-              {showWp && <Badge variant="blue"  style={{ fontSize: '0.68rem', padding: '2px 8px' }}>{wp}</Badge>}
-              {hasVisa && <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>Visa</Badge>}
-              {hasRelocation && <Badge variant="neutral" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>Relocation</Badge>}
+              {applied && <Badge variant="green" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>✓ Applied</Badge>}
+              {showWp && <Badge variant="blue"  style={{ fontSize: '0.72rem', padding: '2px 8px' }}>{wp}</Badge>}
+              {hasVisa && <Badge variant="green" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>Visa</Badge>}
+              {hasRelocation && <Badge variant="neutral" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>Relocation</Badge>}
               {salary && (
-                <Badge variant="green" style={{ fontSize: '0.68rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <Badge variant="neutral" style={{ fontSize: '0.72rem', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                   {job.filterSalaryTier && (
                     <span
                       title={job.filterSalaryTier === 'ats' ? 'Salary provided by employer' : 'Salary found in job description'}
@@ -95,9 +95,9 @@ export const MobileJobCard = memo(function MobileJobCard({ job, applied, onClick
           textAlign: 'left', width: '100%',
         }}
       >
-        <p style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3, paddingRight: 26 }}>{job.JobTitle}</p>
-        <p style={{ fontSize: '0.77rem', color: 'var(--text-muted)', marginTop: 4 }}>{job.Company} · {getDisplayLocation(job)}</p>
-        <p style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 3 }}>{relativeDate(job.PostedDate || job.scrapedAt)}</p>
+        <p style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3, paddingRight: 26 }}>{job.JobTitle}</p>
+        <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: 4 }}>{job.Company} · {getDisplayLocation(job)}</p>
+        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3 }}>{relativeDate(job.PostedDate || job.scrapedAt)}</p>
         {(applied || job.filterVisa === 'available' || job.filterRelocation === 'available') && (
           <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
             {applied && <Badge variant="green" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>✓ Applied</Badge>}

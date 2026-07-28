@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import type { IJob, GateReason, GateUsage, GatedTeaser } from '../types';
 import { fetchJobDetail } from '../utils/jobApi';
+import { track } from '../utils/analytics';
 
 interface Result {
   job: IJob | null;
@@ -43,6 +44,7 @@ export function useGatedJobDetail(jobId: string | null, fallbackTeaser?: GatedTe
     try {
       const res = await fetchJobDetail(jobId);
       if (res.gated) {
+        track('jd_view_gated', { gate_reason: res.gateReason, views_used: res.usage?.used });
         setState({
           job: null,
           gated: true,

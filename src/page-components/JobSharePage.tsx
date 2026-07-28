@@ -26,22 +26,24 @@ import { Container } from '../components/ui';
 import { BRAND } from '../theme/brand';
 import type { IJob, GatedTeaser } from '../types';
 
-export default function JobSharePage() {
+export default function JobSharePage({ initialJob = null }: { initialJob?: IJob | null } = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const [job, setJob] = useState<IJob | null>(null);
+  // Seed from the server-fetched job so the first paint (and crawler HTML) shows
+  // content immediately; the client fetch below refines it for the logged-in
+  // user's gating. Only start in the loading state when we have no seed.
+  const [job, setJob] = useState<IJob | null>(initialJob);
   const [gated, setGated] = useState(false);
   const [teaser, setTeaser] = useState<GatedTeaser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialJob);
   const [error, setError] = useState<string | null>(null);
   const [forceGate, setForceGate] = useState(false);
 
   // ── Fetch job (waits for auth init so we use the right cache lane) ────
   const fetchJob = useCallback(async () => {
     if (!id || authLoading) return;
-    setLoading(true);
     setError(null);
     try {
       const res = await fetchJobDetailCached(id, isAuthenticated);

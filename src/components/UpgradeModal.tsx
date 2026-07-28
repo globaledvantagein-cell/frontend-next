@@ -23,6 +23,7 @@ import { X, Crown, Check, Zap, SlidersHorizontal, Sparkles } from 'lucide-react'
 import { useAuth } from '../context/AuthContext';
 import { redeemPromoCode } from '../utils/jobApi';
 import { ApiError } from '../utils/jobApi';
+import { track } from '../utils/analytics';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { GateReason, GateUsage } from '../types';
 
@@ -84,7 +85,7 @@ export function PremiumFeatureBullets() {
 }
 
 // ─── Reusable: promo code redemption form ────────────────────────────────────
-export function PromoCodeForm({ onSuccess }: { onSuccess?: () => void }) {
+export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () => void; source?: string }) {
   const { refreshUsage } = useAuth();
   const [code, setCode] = useState('');
   const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
@@ -99,6 +100,7 @@ export function PromoCodeForm({ onSuccess }: { onSuccess?: () => void }) {
       await redeemPromoCode(trimmed);
       setState('success');
       setMessage('Premium activated!');
+      track('promo_code_redeemed', { source });
       // Update the auth context immediately so the UI reflects premium…
       await refreshUsage();
       onSuccess?.();
@@ -107,7 +109,9 @@ export function PromoCodeForm({ onSuccess }: { onSuccess?: () => void }) {
     } catch (err) {
       setState('error');
       const body = err instanceof ApiError ? err.body : null;
-      setMessage(body?.message || (err instanceof Error ? err.message : 'Could not apply that code.'));
+      const errorMessage = body?.message || (err instanceof Error ? err.message : 'Could not apply that code.');
+      setMessage(errorMessage);
+      track('promo_code_failed', { source, error: errorMessage });
     }
   };
 
@@ -258,6 +262,14 @@ export default function UpgradeModal({ gateReason, usage, onClose }: Props) {
   const dismissible = gateReason !== 'signup_required';
   const [promoOpen, setPromoOpen] = useState(false);
 
+  // Funnel entry: which gate fired, and on which page.
+  useEffect(() => {
+    track('paywall_shown', {
+      gate_reason: gateReason,
+      page: typeof window !== 'undefined' ? window.location.pathname : undefined,
+    });
+  }, [gateReason]);
+
   useEffect(() => {
     if (!dismissible) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose?.(); };
@@ -357,7 +369,7 @@ export default function UpgradeModal({ gateReason, usage, onClose }: Props) {
           <>
             <button
               type="button"
-              onClick={() => navigate('/premium')}
+              onClick={() => { track('upgrade_cta_clicked', { gate_reason: gateReason, source: 'modal' }); navigate('/premium'); }}
               style={{
                 width: '100%', minHeight: 46, background: 'var(--acid)', color: '#fff',
                 border: 'none', borderRadius: 12, fontFamily: 'inherit', fontSize: '0.9rem', fontWeight: 700, cursor: 'pointer',

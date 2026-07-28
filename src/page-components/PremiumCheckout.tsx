@@ -16,6 +16,7 @@ import { useNavigate } from '@/compat/router';
 import { Crown, Check, Shield, Lock, CreditCard, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { redeemPromoCode, ApiError } from '../utils/jobApi';
+import { track } from '../utils/analytics';
 import { Spinner } from '../components/ui';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
@@ -101,6 +102,9 @@ export default function PremiumCheckout() {
     }
   }, [isLoading, isAuthenticated, nav]);
 
+  // Funnel: checkout page viewed (once).
+  useEffect(() => { track('checkout_page_viewed'); }, []);
+
   // Card field validity (errors shown only after blur via `touched`).
   const cardNumberInvalid = touched.cardNumber && !isCardNumberValid(cardNumber);
   const expiryInvalid = touched.expiry && !isExpiryValid(expiry);
@@ -116,6 +120,7 @@ export default function PremiumCheckout() {
     if (!promoCode.trim()) return;
     setPromoApplied(true);
     setConfirmError(null);
+    track('promo_code_redeemed', { source: 'checkout' });
   };
 
   const handleConfirm = async () => {
@@ -124,6 +129,7 @@ export default function PremiumCheckout() {
     setConfirmError(null);
     try {
       await redeemPromoCode(promoCode.trim());
+      track('premium_activated', { source: 'checkout', method: 'promo' });
       await refreshUsage();
       setConfirmed(true);
       setTimeout(() => nav('/jobs'), 2000);

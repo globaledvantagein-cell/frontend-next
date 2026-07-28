@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { apiPost, fetchUsageStats, clearUsageCache, STORAGE_KEY_TOKEN, STORAGE_KEY_USER } from '../utils/jobApi';
+import { identifyUser, resetAnalytics } from '../utils/analytics';
 import type { UsageStats } from '../types';
 
 interface User {
@@ -99,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(STORAGE_KEY_TOKEN);
     localStorage.removeItem(STORAGE_KEY_USER);
     clearUsageCache();
+    resetAnalytics(); // clear PostHog identified state
     setToken(null);
     setUser(null);
     setUsage(null);
@@ -111,6 +113,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token, refreshUsage]);
 
   const isAdmin = user?.role === 'admin';
+
+  // Identify the user to PostHog on login / token-restore. Re-runs when usage
+  // resolves so isPremium is kept current as a person property.
+  useEffect(() => {
+    if (!user) return;
+    identifyUser(user.id, {
+      email: user.email,
+      role: user.role,
+      isPremium: isAdmin || (usage?.isPremium ?? false),
+    });
+  }, [user, usage, isAdmin]);
 
   const value = useMemo<AuthContextType>(() => ({
     user,

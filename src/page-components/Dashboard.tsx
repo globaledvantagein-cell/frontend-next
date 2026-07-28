@@ -327,7 +327,7 @@ export default function Dashboard() {
             }}
           >
             {loading ? skeletons : (
-              <div className="flex flex-col" style={{ gap: 6, padding: '4px 4px' }}>
+              <div className="flex flex-col" style={{ gap: 8, padding: '4px 4px' }}>
                 {jobs.length === 0 ? emptyState : (
                   <>
                     {jobs.map(job => (

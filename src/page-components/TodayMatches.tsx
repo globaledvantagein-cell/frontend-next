@@ -20,6 +20,7 @@ import { Container, PageHeader, Button, EmptyState } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { fetchSkillMatches, type SkillMatchJob } from '../utils/skillMatchApi';
 import { PremiumPitch } from '../components/UpgradeModal';
+import { track } from '../utils/analytics';
 import { BRAND } from '../theme/brand';
 
 type Status = 'loading' | 'done' | 'no_profile' | 'no_skills' | 'no_matches' | 'error';
@@ -40,6 +41,13 @@ export default function TodayMatches() {
   const [meta, setMeta] = useState<{ userSkillCount?: number; totalJobsScanned?: number }>({});
 
   useEffect(() => { document.title = `Today's Matches · ${BRAND.appName}`; }, []);
+
+  // Funnel: a non-premium user hit the Today's Matches premium wall.
+  useEffect(() => {
+    if (!authLoading && (isAdmin || usage !== null) && !isPremium) {
+      track('premium_feature_blocked', { feature: 'today_matches' });
+    }
+  }, [authLoading, isAdmin, usage, isPremium]);
 
   const load = (refresh = false) => {
     setStatus('loading');

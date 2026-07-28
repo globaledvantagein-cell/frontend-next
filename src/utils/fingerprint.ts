@@ -44,6 +44,12 @@ if (typeof window !== 'undefined') {
  * Synchronous accessor used by authHeaders(). Returns the cached visitorId, or
  * '' if the async agent hasn't resolved yet (extremely rare — only on the very
  * first request of a fresh page load). The backend maps '' → null fingerprint.
+ *
+ * Note: this returns '' (not null) for the not-ready case on purpose —
+ * authHeaders() types its header map as Record<string, string> and jobApi.ts is
+ * off-limits to change, so a null here would break its type / send the literal
+ * "null" (8 chars) as a fingerprint. '' is falsy like null and the backend's
+ * extractFingerprint() rejects anything shorter than 8 chars → treated as null.
  */
 export function getFingerprint(): string {
   return cached ?? '';
@@ -53,7 +59,7 @@ export function getFingerprint(): string {
  * Async accessor for callers that can await the stable id (e.g. an explicit
  * pre-warm). Resolves immediately if already cached.
  */
-export async function getFingerprintAsync(): Promise<string> {
+export async function getFingerPrintAsync(): Promise<string> {
   if (cached) return cached;
   return init();
 }
