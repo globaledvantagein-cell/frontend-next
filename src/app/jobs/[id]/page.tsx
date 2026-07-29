@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { fetchJobFull, SITE_URL } from '@/lib/serverApi';
 import JobSharePage from '@/page-components/JobSharePage';
-import JsonLd, { jobPostingJsonLd } from '@/components/seo/JsonLd';
+import JsonLd, { jobPostingJsonLd, breadcrumbJsonLd } from '@/components/seo/JsonLd';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,6 +50,13 @@ export default async function JobDetailRoute({ params }: Params) {
   return (
     <>
       {job && <JsonLd data={jobPostingJsonLd(job, SITE_URL)} />}
+      {job && (
+        <JsonLd data={breadcrumbJsonLd([
+          { name: 'Home', url: `${SITE_URL}/` },
+          { name: 'Jobs', url: `${SITE_URL}/jobs` },
+          { name: `${job.JobTitle} at ${job.Company}`, url: `${SITE_URL}/jobs/${job._id}` },
+        ])} />
+      )}
       {/* Seed the client page with the full server-fetched job (crawlable HTML +
           instant first paint); the client re-fetches to apply auth-aware gating. */}
       <JobSharePage initialJob={res.job ?? null} />
