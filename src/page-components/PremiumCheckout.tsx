@@ -10,7 +10,7 @@
  *      and activates 3 months of Premium. No payment details of any kind.
  */
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useNavigate } from '@/compat/router';
+import { useNavigate, Link } from '@/compat/router';
 import {
   Crown, Check, Shield, RefreshCw, Sparkles, KeyRound, MailPlus, Zap, CreditCard,
 } from 'lucide-react';
@@ -221,10 +221,10 @@ export default function PremiumCheckout() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: '0.8rem', color: cardMuted }}>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <Shield size={13} style={{ color: gold, flexShrink: 0 }} /> 30-day money-back guarantee
+          <Shield size={13} style={{ color: gold, flexShrink: 0 }} /> Full access, nothing held back
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <RefreshCw size={13} style={{ flexShrink: 0 }} /> Cancel anytime
+          <RefreshCw size={13} style={{ flexShrink: 0 }} /> No auto-renewal, no surprise charges
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <CreditCard size={13} style={{ flexShrink: 0 }} /> No credit card required
@@ -357,7 +357,7 @@ export default function PremiumCheckout() {
       {[
         { icon: <CreditCard size={13} />, text: 'No credit card' },
         { icon: <Zap size={13} />, text: 'Instant activation' },
-        { icon: <RefreshCw size={13} />, text: 'Cancel anytime' },
+        { icon: <RefreshCw size={13} />, text: 'No auto-renewal' },
       ].map((t, i) => (
         <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)' }}>
           {t.icon} {t.text}
@@ -369,8 +369,8 @@ export default function PremiumCheckout() {
   const legalNotice = (
     <p style={{ margin: '10px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
       By activating, you agree to our{' '}
-      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Terms</a> and{' '}
-      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Privacy Policy</a>.
+      <Link to="/legal?tab=terms" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Terms</Link> and{' '}
+      <Link to="/legal?tab=privacy" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Privacy Policy</Link>.
     </p>
   );
 

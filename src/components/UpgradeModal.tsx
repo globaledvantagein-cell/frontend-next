@@ -122,8 +122,8 @@ export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () 
           value={code}
           onChange={e => { setCode(e.target.value.toUpperCase()); if (state === 'error') { setState('idle'); setMessage(null); } }}
           onKeyDown={e => { if (e.key === 'Enter') submit(); }}
-          placeholder="Promo code"
-          aria-label="Promo code"
+          placeholder="Invite code"
+          aria-label="Invite code"
           disabled={state === 'submitting' || state === 'success'}
           style={{
             flex: 1, minWidth: 0, height: 40, padding: '0 12px',
@@ -355,7 +355,7 @@ export default function UpgradeModal({ gateReason, usage, onClose }: Props) {
                   onClick={() => setPromoOpen(true)}
                   style={{ background: 'none', border: 'none', color: 'var(--acid)', fontFamily: 'inherit', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer' }}
                 >
-                  Or enter a promo code
+                  Or enter an invite code
                 </button>
               )
             )}
