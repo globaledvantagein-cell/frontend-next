@@ -218,6 +218,11 @@ export async function joinWaitlist(): Promise<{ success?: boolean; alreadyJoined
     return apiPost('/api/auth/join-waitlist');
 }
 
+/** GET /api/auth/waitlist-status — restores the joined state after refresh (DB-backed). */
+export async function fetchWaitlistStatus(): Promise<{ onWaitlist: boolean; joinedAt: string | null }> {
+    return apiGet('/api/auth/waitlist-status');
+}
+
 /** POST /api/auth/redeem-promo. Throws ApiError (with .body) on an invalid code. */
 export async function redeemPromoCode(code: string): Promise<{ success: boolean; premiumUntil: string | null; plan: string }> {
     return apiPost('/api/auth/redeem-promo', { code });

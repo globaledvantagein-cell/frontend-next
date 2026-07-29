@@ -15,7 +15,7 @@ import {
   Crown, Check, Shield, RefreshCw, Sparkles, KeyRound, MailPlus, Zap, CreditCard,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { redeemPromoCode, joinWaitlist, ApiError } from '../utils/jobApi';
+import { redeemPromoCode, joinWaitlist, fetchWaitlistStatus, ApiError } from '../utils/jobApi';
 import { track } from '../utils/analytics';
 import { Spinner } from '../components/ui';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -38,7 +38,7 @@ function formatDate(dateStr?: string | null): string {
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
-type WaitlistState = 'idle' | 'joining' | 'joined';
+type WaitlistState = 'checking' | 'idle' | 'joining' | 'joined';
 
 export default function PremiumCheckout() {
   const nav = useNavigate();
@@ -51,9 +51,11 @@ export default function PremiumCheckout() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
-  // Waitlist card state.
-  const [waitlist, setWaitlist] = useState<WaitlistState>('idle');
-  const [waitlistNote, setWaitlistNote] = useState("We'll email your invite code · Usually takes a few minutes");
+  // Waitlist card state. Starts 'checking' — the DB is the source of truth
+  // for "already joined", restored via /waitlist-status on load so a refresh
+  // (or another device) keeps the secured-spot state.
+  const [waitlist, setWaitlist] = useState<WaitlistState>('checking');
+  const [waitlistNote, setWaitlistNote] = useState('Your personal invite code arrives by email · Usually within minutes');
 
   // Invite-code card state.
   const [inviteCode, setInviteCode] = useState('');
@@ -71,6 +73,26 @@ export default function PremiumCheckout() {
   // Funnel: page viewed (once).
   useEffect(() => { track('premium_page_viewed'); }, []);
 
+  // Restore waitlist state from the DB (survives refresh + other devices).
+  // Expired/redeemed codes report onWaitlist: false, so users with a dead
+  // code can simply claim a fresh spot. Errors fail open to the join button.
+  useEffect(() => {
+    if (isLoading || !isAuthenticated || isPremium) return;
+    let cancelled = false;
+    fetchWaitlistStatus()
+      .then(s => {
+        if (cancelled) return;
+        if (s.onWaitlist) {
+          setWaitlist('joined');
+          setWaitlistNote('Your invite code is on its way. Keep an eye on your inbox.');
+        } else {
+          setWaitlist('idle');
+        }
+      })
+      .catch(() => { if (!cancelled) setWaitlist('idle'); });
+    return () => { cancelled = true; };
+  }, [isLoading, isAuthenticated, isPremium]);
+
   const handleJoinWaitlist = async () => {
     if (waitlist !== 'idle') return;
     setWaitlist('joining');
@@ -79,8 +101,8 @@ export default function PremiumCheckout() {
       track('waitlist_joined', { alreadyJoined: Boolean(res.alreadyJoined) });
       setWaitlist('joined');
       setWaitlistNote(res.alreadyJoined
-        ? "You're already on the waitlist. Check your email."
-        : 'Check your email in a few minutes');
+        ? "You're already in line. Your invite code is on its way, check your inbox."
+        : 'Your personal invite code is being prepared. It lands in your inbox within minutes.');
     } catch (err) {
       const body = err instanceof ApiError ? err.body : null;
       if (body?.error === 'already_premium') {
@@ -212,39 +234,59 @@ export default function PremiumCheckout() {
   );
 
   // ── Right column — waitlist + invite code cards ─────────────────────────
+  // Same navy/gold membership language as the plan card and the invite
+  // email: gold hairline, gold eyebrows, dark CTA. One brand, one moment.
   const sectionLabel: CSSProperties = {
     display: 'inline-flex', alignItems: 'center', gap: 7,
-    fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
-    color: 'var(--text-muted)', margin: 0,
+    fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+    color: '#b98a2e', margin: 0,
   };
   const cardShell: CSSProperties = {
-    background: 'var(--surface-solid)', border: '1.25px solid var(--border)',
+    background: 'var(--surface-solid)', border: '1px solid rgba(212, 169, 74, 0.35)',
     borderRadius: 16, padding: 20, boxShadow: 'var(--shadow-md)',
+    position: 'relative', overflow: 'hidden',
   };
+  const goldHairline = (
+    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
+  );
 
   const waitlistCard = (
     <div style={cardShell}>
-      <h2 style={sectionLabel}><Sparkles size={13} /> Invite only program</h2>
-      <p style={{ margin: '10px 0 14px', fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
-        Premium is currently invite-only for early users. Join the waitlist and
-        we&apos;ll send your personal invite code when a spot opens up.
-      </p>
+      {goldHairline}
+      <h2 style={sectionLabel}><Sparkles size={13} /> Invite only · Limited spots</h2>
+      <ul style={{ listStyle: 'none', margin: '12px 0 14px', padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {[
+          <><strong style={{ color: 'var(--text-primary)' }}>3 months free</strong>, a &euro;44.97 value, zero to pay</>,
+          <>Your code is <strong style={{ color: 'var(--text-primary)' }}>reserved for this account only</strong></>,
+          <>Small batches: <strong style={{ color: 'var(--text-primary)' }}>limited codes</strong> released at a time</>,
+          <>One click to claim, no credit card ever</>,
+        ].map((item, i) => (
+          <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.87rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>
+            <span style={{ color: gold, flexShrink: 0, marginTop: 2 }}><Check size={14} /></span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
       <button
         type="button"
         onClick={handleJoinWaitlist}
         disabled={waitlist !== 'idle'}
         style={{
-          width: '100%', height: 46, borderRadius: 10, border: 'none',
-          background: waitlist === 'joined' ? 'var(--success, #22c55e)' : 'var(--acid)',
-          color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 600,
+          width: '100%', height: 46, borderRadius: 10,
+          background: '#0f1620',
+          border: waitlist === 'joined' ? `1px solid ${gold}` : '1px solid rgba(212, 169, 74, 0.5)',
+          color: waitlist === 'joined' ? gold : '#f5f2ea',
+          fontFamily: 'inherit', fontSize: 15, fontWeight: 600,
           cursor: waitlist === 'idle' ? 'pointer' : 'default',
+          opacity: waitlist === 'checking' ? 0.6 : 1,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          transition: 'background 0.2s',
+          transition: 'background 0.2s, opacity 0.2s',
         }}
       >
-        {waitlist === 'joined' ? (<><Check size={17} /> You&apos;re on the waitlist!</>)
-          : waitlist === 'joining' ? (<><Spinner size={16} /> Joining…</>)
-          : (<><MailPlus size={17} /> Join the waitlist</>)}
+        {waitlist === 'joined' ? (<><Check size={17} /> Spot secured. You&apos;re in!</>)
+          : waitlist === 'joining' ? (<><Spinner size={16} /> Securing your spot…</>)
+          : waitlist === 'checking' ? (<><Spinner size={16} /></>)
+          : (<><MailPlus size={17} /> Claim my spot</>)}
       </button>
       <p style={{ margin: '8px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)', textAlign: 'center' }}>
         {waitlistNote}
@@ -254,6 +296,7 @@ export default function PremiumCheckout() {
 
   const codeCard = (
     <div style={cardShell}>
+      {goldHairline}
       <h2 style={sectionLabel}><KeyRound size={13} /> Have an invite code?</h2>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <input
@@ -277,8 +320,9 @@ export default function PremiumCheckout() {
           disabled={!inviteCode.trim() || activating || activated}
           style={{
             height: 44, padding: '0 20px', flexShrink: 0, borderRadius: 8,
-            background: activated ? 'var(--success, #22c55e)' : 'var(--acid)',
-            color: '#fff', border: 'none', fontFamily: 'inherit', fontSize: 15, fontWeight: 600,
+            background: activated ? 'var(--success, #22c55e)' : '#0f1620',
+            border: activated ? 'none' : '1px solid rgba(212, 169, 74, 0.5)',
+            color: activated ? '#fff' : '#f5f2ea', fontFamily: 'inherit', fontSize: 15, fontWeight: 600,
             cursor: !inviteCode.trim() || activating || activated ? 'default' : 'pointer',
             opacity: !inviteCode.trim() && !activated ? 0.6 : 1,
             display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -294,7 +338,7 @@ export default function PremiumCheckout() {
       )}
       {activated && (
         <p style={{ margin: '8px 0 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--success, #22c55e)' }}>
-          Premium activated — taking you to jobs…
+          Premium activated! Taking you to jobs…
         </p>
       )}
     </div>
