@@ -1,13 +1,20 @@
+// Kept short on purpose — the full tool list lives as quick links on the
+// Dashboard (see ADMIN_QUICK_LINKS). Nav shows only the daily-driver pages.
 export const ADMIN_LINKS: ReadonlyArray<readonly [string, string]> = [
-  ['/dashboard',          'Dashboard'],
-  ['/review',             'Review'],
+  ['/dashboard', 'Dashboard'],
+  ['/review',    'Review'],
+  ['/analytics', 'Analytics'],
+  ['/feedback',  'Feedback'],
+  ['/health',    'Health'],
+];
+
+// Everything else, surfaced as a quick-links grid on /dashboard.
+export const ADMIN_QUICK_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/test-logs',          'Test Logs'],
   ['/admin/companies',    'Directory'],
   ['/admin/career-guide', 'Career Guide'],
   ['/add',                'Add Job'],
   ['/rejected',           'Trash'],
-  ['/feedback',           'Feedback'],
-  ['/health',             'Health'],
   ['/smart-match',        'Smart Match'],
   ['/today-matches',      "Today's Matches"],
 ];

@@ -5,6 +5,7 @@ import { Link } from '@/compat/router';
 import { ClipboardList, RefreshCw, ArrowRight, FlaskConical, Globe, Trash2 } from 'lucide-react';
 import { Container, PageHeader, Button, StatCard } from '../components/ui';
 import { apiGet, apiPost } from '../utils/jobApi';
+import { ADMIN_QUICK_LINKS } from '../components/layout/navLinks';
 
 interface CleanSummary { total: number; cleaned: number; alreadyClean: number; }
 interface BackfillSummary { total: number; updated: number; logsTotal: number; logsUpdated: number; message: string; }
@@ -120,6 +121,30 @@ export default function AdminDashboard() {
           : <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 14 }}>
             {DB_COUNTS.map(s => <StatCard key={s.label} icon={s.icon} value={s.value} label={s.label} accent={s.accent} />)}
           </div>}
+        {/* Admin tools not in the (deliberately short) top nav. */}
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>
+            All admin tools
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {ADMIN_QUICK_LINKS.map(([href, label]) => (
+              <Link
+                key={href}
+                to={href}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--surface-solid)',
+                  fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                }}
+              >
+                {label} <ArrowRight size={12} />
+              </Link>
+            ))}
+          </div>
+        </div>
+
         <div style={{ marginTop: 24, padding: '24px', background: 'var(--surface-solid)', border: '1.25px solid var(--border)', borderRadius: 14 }}>
           <p className="font-sketch" style={{ fontSize: '1rem', color: 'var(--primary)', marginBottom: 10 }}>System Status</p>
           <p style={{ fontSize: '0.9rem', color: 'var(--muted-ink)', lineHeight: 1.7 }}>
