@@ -1,27 +1,26 @@
 'use client';
 
 /**
- * /premium — Premium checkout.
+ * /premium — invite-only Premium page.
  *
- * During the beta period, billing is completed exclusively via promo code
- * (POST /api/auth/redeem-promo). Card entry is handled entirely client-side
- * for the upcoming card-billing rollout; card values stay in local component
- * state only.
- *
- * Promo Apply updates the order summary; the single redemption call happens
- * on Confirm, then the user is redirected to /jobs.
+ * Premium is free for early users, gated by personal invite codes:
+ *   1. "Join the waitlist" → POST /api/auth/join-waitlist generates a
+ *      one-time EJG-XXXX-XXXX code and emails it a few minutes later.
+ *   2. "Have an invite code?" → redeems the code (POST /api/auth/redeem-promo)
+ *      and activates 3 months of Premium. No payment details of any kind.
  */
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from '@/compat/router';
-import { Crown, Check, Shield, Lock, CreditCard, RefreshCw } from 'lucide-react';
+import {
+  Crown, Check, Shield, RefreshCw, Sparkles, KeyRound, MailPlus, Zap, CreditCard,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { redeemPromoCode, recordPaymentIntent, ApiError } from '../utils/jobApi';
+import { redeemPromoCode, joinWaitlist, ApiError } from '../utils/jobApi';
 import { track } from '../utils/analytics';
 import { Spinner } from '../components/ui';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const PLAN_PRICE = '€14.99';
-const PLAN_ZERO = '€0.00';
 
 const FEATURES: string[] = [
   'Unlimited job description views',
@@ -33,67 +32,34 @@ const FEATURES: string[] = [
   'Priority support',
 ];
 
-// ── Input masking (pure, display-only) ───────────────────────────────────────
-function formatCardNumber(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 16);
-  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim();
-}
-function formatExpiry(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 4);
-  return digits.length <= 2 ? digits : `${digits.slice(0, 2)}/${digits.slice(2)}`;
-}
-function formatCvv(value: string): string {
-  return value.replace(/\D/g, '').slice(0, 4);
-}
-
-// ── Card validation (client-side) ────────────────────────────────────────────
-function isCardNumberValid(value: string): boolean {
-  return value.replace(/\s/g, '').length === 16;
-}
-function isExpiryValid(value: string): boolean {
-  const m = /^(\d{2})\/(\d{2})$/.exec(value);
-  if (!m) return false;
-  const month = parseInt(m[1], 10);
-  if (month < 1 || month > 12) return false;
-  const year = 2000 + parseInt(m[2], 10);
-  const now = new Date();
-  // Valid through the last day of the expiry month.
-  return year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1);
-}
-function isCvvValid(value: string): boolean {
-  return value.length === 3 || value.length === 4;
-}
-
 function formatDate(dateStr?: string | null): string {
   if (!dateStr) return '';
   const d = new Date(dateStr);
   return isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
+type WaitlistState = 'idle' | 'joining' | 'joined';
+
 export default function PremiumCheckout() {
   const nav = useNavigate();
   const { isAuthenticated, isLoading, isPremium, usage, refreshUsage } = useAuth();
   const isMobile = useMediaQuery('(max-width: 767px)');
 
-  // Card entry state (client-side).
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
-  const [cardName, setCardName] = useState('');
-  const [cardFocused, setCardFocused] = useState(false);
-  // Track which card fields have been blurred so validation errors only show
-  // after the user has interacted (standard checkout behavior).
-  const [touched, setTouched] = useState<{ [k: string]: boolean }>({});
+  // Hydration guard: auth state and the media query only resolve on the
+  // client, so SSR HTML and the first client render must both show the same
+  // neutral loading state. Real content appears after mount.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
-  // Promo + confirmation.
-  const [promoCode, setPromoCode] = useState('');
-  const [promoApplied, setPromoApplied] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [confirmed, setConfirmed] = useState(false);
-  const [confirmError, setConfirmError] = useState<string | null>(null);
+  // Waitlist card state.
+  const [waitlist, setWaitlist] = useState<WaitlistState>('idle');
+  const [waitlistNote, setWaitlistNote] = useState("We'll email your invite code · Usually takes a few minutes");
 
-  // Mobile: features collapsed by default.
-  const [showFeatures, setShowFeatures] = useState(false);
+  // Invite-code card state.
+  const [inviteCode, setInviteCode] = useState('');
+  const [activating, setActivating] = useState(false);
+  const [activated, setActivated] = useState(false);
+  const [codeError, setCodeError] = useState<string | null>(null);
 
   // Auth gate — bounce anonymous users to login (preserving intent).
   useEffect(() => {
@@ -102,65 +68,50 @@ export default function PremiumCheckout() {
     }
   }, [isLoading, isAuthenticated, nav]);
 
-  // Funnel: checkout page viewed (once).
-  useEffect(() => { track('checkout_page_viewed'); }, []);
+  // Funnel: page viewed (once).
+  useEffect(() => { track('premium_page_viewed'); }, []);
 
-  // Card field validity (errors shown only after blur via `touched`).
-  const cardNumberInvalid = touched.cardNumber && !isCardNumberValid(cardNumber);
-  const expiryInvalid = touched.expiry && !isExpiryValid(expiry);
-  const cvvInvalid = touched.cvv && !isCvvValid(cvv);
-  const nameInvalid = touched.cardName && cardName.trim() === '';
-  const cardGroupInvalid = cardNumberInvalid || expiryInvalid || cvvInvalid;
-  const cardComplete =
-    isCardNumberValid(cardNumber) && isExpiryValid(expiry) && isCvvValid(cvv) && cardName.trim() !== '';
-
-  const markTouched = (field: string) => setTouched(t => ({ ...t, [field]: true }));
-
-  const applyPromo = () => {
-    if (!promoCode.trim()) return;
-    setPromoApplied(true);
-    setConfirmError(null);
-    track('promo_code_redeemed', { source: 'checkout' });
+  const handleJoinWaitlist = async () => {
+    if (waitlist !== 'idle') return;
+    setWaitlist('joining');
+    try {
+      const res = await joinWaitlist();
+      track('waitlist_joined', { alreadyJoined: Boolean(res.alreadyJoined) });
+      setWaitlist('joined');
+      setWaitlistNote(res.alreadyJoined
+        ? "You're already on the waitlist. Check your email."
+        : 'Check your email in a few minutes');
+    } catch (err) {
+      const body = err instanceof ApiError ? err.body : null;
+      if (body?.error === 'already_premium') {
+        nav('/jobs');
+        return;
+      }
+      setWaitlist('idle');
+      setWaitlistNote('Something went wrong — please try again.');
+    }
   };
 
-  const handleConfirm = async () => {
-    if (confirming || confirmed) return;
-
-    // ── Promo path — the real (beta) activation flow ──
-    if (promoApplied && promoCode.trim()) {
-      setConfirming(true);
-      setConfirmError(null);
-      try {
-        await redeemPromoCode(promoCode.trim());
-        track('premium_activated', { source: 'checkout', method: 'promo' });
-        await refreshUsage();
-        setConfirmed(true);
-        setTimeout(() => nav('/jobs'), 2000);
-      } catch (err) {
-        const body = err instanceof ApiError ? err.body : null;
-        setConfirmError(body?.message || (err instanceof Error ? err.message : 'Payment could not be completed.'));
-        setConfirming(false);
-      }
-      return;
-    }
-
-    // ── Card path — billing isn't live; record the payment attempt
-    // (willingness-to-pay signal) and decline gracefully. Card details
-    // never leave the browser.
-    if (cardComplete) {
-      setConfirming(true);
-      setConfirmError(null);
-      track('payment_attempt_card', { source: 'checkout' });
-      try { await recordPaymentIntent(); } catch { /* metric only — never block */ }
-      // Brief processing delay so the decline reads as a real gateway response.
-      await new Promise(r => setTimeout(r, 1400));
-      setConfirming(false);
-      setConfirmError("Card payments couldn't be processed right now. Please try again later, or use a promo code if you have one.");
+  const handleActivate = async () => {
+    const code = inviteCode.trim();
+    if (!code || activating || activated) return;
+    setActivating(true);
+    setCodeError(null);
+    try {
+      await redeemPromoCode(code);
+      track('premium_activated', { source: 'premium_page', method: 'invite_code' });
+      await refreshUsage();
+      setActivated(true);
+      setTimeout(() => nav('/jobs'), 2000);
+    } catch (err) {
+      const body = err instanceof ApiError ? err.body : null;
+      setCodeError(body?.message || (err instanceof Error ? err.message : 'That code could not be activated.'));
+      setActivating(false);
     }
   };
 
   // ── Loading / redirect states ───────────────────────────────────────────
-  if (isLoading || !isAuthenticated) {
+  if (!mounted || isLoading || !isAuthenticated) {
     return (
       <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
         <Spinner size={20} />
@@ -169,10 +120,9 @@ export default function PremiumCheckout() {
   }
 
   // ── Already premium ─────────────────────────────────────────────────────
-  // `!confirmed` so that a just-completed redemption (which flips isPremium via
-  // refreshUsage) keeps showing the "Premium activated!" success state on the
-  // checkout button until the 2s redirect, rather than snapping to this card.
-  if (isPremium && !confirmed) {
+  // `!activated` so a just-completed activation keeps its success state until
+  // the 2s redirect instead of snapping to this card.
+  if (isPremium && !activated) {
     const premiumExpiry = formatDate(usage?.premiumExpiresAt);
     return (
       <div style={{ minHeight: '80vh', background: 'var(--paper)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
@@ -203,11 +153,9 @@ export default function PremiumCheckout() {
     );
   }
 
-  // ── Shared pieces ───────────────────────────────────────────────────────
-  // The plan card is styled as a dark "membership card" in the same navy +
-  // gold language as the premium invite email, so inbox → checkout reads as
-  // one continuous brand moment. Fixed colors (not theme vars) on purpose —
-  // like the email header, it stays identical in light and dark themes.
+  // ── Left column — dark membership plan card ─────────────────────────────
+  // Navy + gold, matching the invite email so inbox → page reads as one
+  // continuous brand moment. Fixed colors on purpose: identical in both themes.
   const gold = '#d4a94a';
   const cardMuted = '#8a94a6';
   const planSummary = (
@@ -217,7 +165,6 @@ export default function PremiumCheckout() {
       borderRadius: 16, padding: '20px 20px 18px', boxShadow: 'var(--shadow-lg)',
       position: 'relative', overflow: 'hidden',
     }}>
-      {/* Gold hairline across the top — mirrors the email header rule. */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
 
       <span style={{
@@ -228,34 +175,25 @@ export default function PremiumCheckout() {
         <Crown size={13} /> Premium · Early access
       </span>
 
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 12 }}>
-        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.15rem', fontWeight: 700, color: '#f5f2ea', letterSpacing: '-0.01em', lineHeight: 1 }}>{PLAN_PRICE}</span>
-        <span style={{ fontSize: '0.88rem', color: cardMuted }}>/ 6 months</span>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 12 }}>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.15rem', fontWeight: 700, color: cardMuted, textDecoration: 'line-through', letterSpacing: '-0.01em', lineHeight: 1 }}>
+          {PLAN_PRICE}
+          <span style={{ fontSize: '1rem', fontWeight: 600 }}>/mo</span>
+        </span>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.15rem', fontWeight: 700, color: '#34D399', letterSpacing: '-0.01em', lineHeight: 1 }}>Free</span>
       </div>
-      <p style={{ margin: '5px 0 0', fontSize: '0.78rem', color: gold, letterSpacing: '0.02em' }}>~€2.50 a month</p>
+      <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: gold, letterSpacing: '0.02em' }}>First 3 months free · invite only · no credit card</p>
 
       <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '14px 0 12px' }} />
 
-      {/* Features — collapsible on mobile. */}
-      {(!isMobile || showFeatures) && (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
-          {FEATURES.map((f, i) => (
-            <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.85rem', color: '#c7d0dd', lineHeight: 1.45 }}>
-              <span style={{ color: gold, flexShrink: 0, marginTop: 1 }}><Check size={14} /></span>
-              {f}
-            </li>
-          ))}
-        </ul>
-      )}
-      {isMobile && (
-        <button
-          type="button"
-          onClick={() => setShowFeatures(s => !s)}
-          style={{ marginTop: showFeatures ? 12 : 0, background: 'none', border: 'none', color: gold, fontFamily: 'inherit', fontSize: '0.84rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-        >
-          {showFeatures ? 'Hide features' : 'See features'}
-        </button>
-      )}
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {FEATURES.map((f, i) => (
+          <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: '0.85rem', color: '#c7d0dd', lineHeight: 1.45 }}>
+            <span style={{ color: gold, flexShrink: 0, marginTop: 1 }}><Check size={14} /></span>
+            {f}
+          </li>
+        ))}
+      </ul>
 
       <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '12px 0' }} />
 
@@ -267,203 +205,115 @@ export default function PremiumCheckout() {
           <RefreshCw size={13} style={{ flexShrink: 0 }} /> Cancel anytime
         </span>
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-          <Lock size={13} style={{ flexShrink: 0 }} /> Secure checkout
+          <CreditCard size={13} style={{ flexShrink: 0 }} /> No credit card required
         </span>
       </div>
     </div>
   );
 
-  const cardInputBase: CSSProperties = {
-    height: 44, fontSize: 15, border: 'none', outline: 'none',
-    background: 'transparent', color: 'var(--text-primary)', fontFamily: 'inherit',
-    padding: '0 12px', width: '100%',
+  // ── Right column — waitlist + invite code cards ─────────────────────────
+  const sectionLabel: CSSProperties = {
+    display: 'inline-flex', alignItems: 'center', gap: 7,
+    fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+    color: 'var(--text-muted)', margin: 0,
   };
-  const standaloneInput: CSSProperties = {
-    height: 44, fontSize: 15, borderRadius: 8, padding: '0 12px', width: '100%',
-    border: '1px solid var(--border)', background: 'var(--bg-surface, var(--surface-solid))',
-    color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none',
+  const cardShell: CSSProperties = {
+    background: 'var(--surface-solid)', border: '1.25px solid var(--border)',
+    borderRadius: 16, padding: 20, boxShadow: 'var(--shadow-md)',
   };
-  const focusOn = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = 'var(--acid)'; };
-  const focusOff = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = 'var(--border)'; };
 
-  const paymentForm = (
-    <div>
-      <h2 style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 10px' }}>Payment method</h2>
-
-      {/* Connected card group (Stripe-style) — card number on top, expiry + CVV below. */}
-      <div style={{ border: `1px solid ${cardGroupInvalid ? 'var(--danger)' : cardFocused ? 'var(--acid)' : 'var(--border)'}`, borderRadius: 8, overflow: 'hidden', transition: 'border-color 0.15s', background: 'var(--bg-surface, var(--surface-solid))' }}>
-        <div style={{ position: 'relative', borderBottom: '1px solid var(--border)' }}>
-          <CreditCard size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-          <input
-            type="text" inputMode="numeric" autoComplete="off"
-            placeholder="1234 5678 9012 3456" maxLength={19}
-            value={cardNumber}
-            onChange={e => setCardNumber(formatCardNumber(e.target.value))}
-            onFocus={() => setCardFocused(true)}
-            onBlur={() => { setCardFocused(false); markTouched('cardNumber'); }}
-            aria-label="Card number"
-            style={{ ...cardInputBase, paddingLeft: 38 }}
-          />
-        </div>
-        <div style={{ display: 'flex' }}>
-          <input
-            type="text" inputMode="numeric" autoComplete="off"
-            placeholder="MM/YY" maxLength={5}
-            value={expiry}
-            onChange={e => setExpiry(formatExpiry(e.target.value))}
-            onFocus={() => setCardFocused(true)}
-            onBlur={() => { setCardFocused(false); markTouched('expiry'); }}
-            aria-label="Expiry date" aria-invalid={expiryInvalid || undefined}
-            style={{ ...cardInputBase, borderRight: '1px solid var(--border)', color: expiryInvalid ? 'var(--danger)' : 'var(--text-primary)' }}
-          />
-          <div style={{ position: 'relative', flex: 1 }}>
-            <Lock size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            <input
-              type="text" inputMode="numeric" autoComplete="off"
-              placeholder="CVV" maxLength={4}
-              value={cvv}
-              onChange={e => setCvv(formatCvv(e.target.value))}
-              onFocus={() => setCardFocused(true)}
-              onBlur={() => { setCardFocused(false); markTouched('cvv'); }}
-              aria-label="CVV" aria-invalid={cvvInvalid || undefined}
-              style={{ ...cardInputBase, paddingLeft: 34 }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <input
-        type="text" autoComplete="off"
-        placeholder="Name on card"
-        value={cardName}
-        onChange={e => setCardName(e.target.value)}
-        onFocus={focusOn}
-        onBlur={e => { focusOff(e); markTouched('cardName'); }}
-        aria-label="Cardholder name" aria-invalid={nameInvalid || undefined}
-        style={{ ...standaloneInput, marginTop: 10, borderColor: nameInvalid ? 'var(--danger)' : 'var(--border)' }}
-      />
-      {(cardNumberInvalid || expiryInvalid || cvvInvalid || nameInvalid) && (
-        <p style={{ margin: '8px 0 0', fontSize: '0.76rem', color: 'var(--danger)' }}>
-          {cardNumberInvalid ? 'Enter a valid 16-digit card number.'
-            : expiryInvalid ? 'Enter a valid expiry date (MM/YY).'
-            : cvvInvalid ? 'Enter the 3–4 digit security code.'
-            : 'Enter the name on the card.'}
-        </p>
-      )}
-
-      {/* Adjacent trust cue — research: place security next to the card, not only in the footer. */}
-      <p style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, fontSize: '0.74rem', color: 'var(--text-muted)' }}>
-        <Lock size={12} /> Your card details are encrypted and never stored.
+  const waitlistCard = (
+    <div style={cardShell}>
+      <h2 style={sectionLabel}><Sparkles size={13} /> Invite only program</h2>
+      <p style={{ margin: '10px 0 14px', fontSize: '0.88rem', lineHeight: 1.6, color: 'var(--text-secondary)' }}>
+        Premium is currently invite-only for early users. Join the waitlist and
+        we&apos;ll send your personal invite code when a spot opens up.
       </p>
-
-      {/* "or" divider */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0' }}>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>or</span>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
-
-      {/* Promo code entry — the supported billing path during beta. */}
-      <h2 style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 10px' }}>Promo code</h2>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          type="text" autoComplete="off"
-          placeholder="Promo code" maxLength={40}
-          value={promoCode}
-          onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoApplied(false); setConfirmError(null); }}
-          onKeyDown={e => { if (e.key === 'Enter') applyPromo(); }}
-          onFocus={focusOn} onBlur={focusOff}
-          aria-label="Promo code"
-          style={{ ...standaloneInput, flex: 1, letterSpacing: '0.04em', textTransform: 'uppercase' }}
-        />
-        <button
-          type="button"
-          onClick={applyPromo}
-          disabled={!promoCode.trim() || promoApplied}
-          style={{
-            height: 44, padding: '0 18px', flexShrink: 0, borderRadius: 8,
-            background: promoApplied ? 'var(--success-soft)' : 'var(--acid)',
-            color: promoApplied ? 'var(--success)' : '#fff',
-            border: 'none', fontFamily: 'inherit', fontSize: 15, fontWeight: 500,
-            cursor: !promoCode.trim() || promoApplied ? 'default' : 'pointer',
-            opacity: !promoCode.trim() ? 0.6 : 1,
-            display: 'inline-flex', alignItems: 'center', gap: 6,
-          }}
-        >
-          {promoApplied ? (<><Check size={15} /> Applied</>) : 'Apply'}
-        </button>
-      </div>
-
-      {/* Order summary */}
-      <div style={{ marginTop: 14, border: '1px solid var(--border)', borderRadius: 12, padding: 12, background: 'var(--bg-surface-2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-          <span>Premium — 6 months</span>
-          {promoApplied ? (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ textDecoration: 'line-through', color: 'var(--text-muted)' }}>{PLAN_PRICE}</span>
-              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{PLAN_ZERO}</span>
-              <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', background: 'var(--success-soft)', color: 'var(--success)', padding: '2px 6px', borderRadius: 4 }}>PROMO APPLIED</span>
-            </span>
-          ) : (
-            <span style={{ color: 'var(--text-primary)' }}>{PLAN_PRICE}</span>
-          )}
-        </div>
-        <div style={{ height: 1, background: 'var(--border)', margin: '12px 0' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-          <span>Due today</span>
-          <span>{promoApplied ? PLAN_ZERO : PLAN_PRICE}</span>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={handleJoinWaitlist}
+        disabled={waitlist !== 'idle'}
+        style={{
+          width: '100%', height: 46, borderRadius: 10, border: 'none',
+          background: waitlist === 'joined' ? 'var(--success, #22c55e)' : 'var(--acid)',
+          color: '#fff', fontFamily: 'inherit', fontSize: 15, fontWeight: 600,
+          cursor: waitlist === 'idle' ? 'pointer' : 'default',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          transition: 'background 0.2s',
+        }}
+      >
+        {waitlist === 'joined' ? (<><Check size={17} /> You&apos;re on the waitlist!</>)
+          : waitlist === 'joining' ? (<><Spinner size={16} /> Joining…</>)
+          : (<><MailPlus size={17} /> Join the waitlist</>)}
+      </button>
+      <p style={{ margin: '8px 0 0', fontSize: '0.74rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+        {waitlistNote}
+      </p>
     </div>
   );
 
-  const confirmButton = (
-    <button
-      type="button"
-      onClick={handleConfirm}
-      disabled={(!promoApplied && !cardComplete) || confirming || confirmed}
-      title={!promoApplied && !cardComplete ? 'Enter payment details or a promo code' : undefined}
-      style={{
-        width: '100%', height: 48, borderRadius: 10, border: 'none',
-        background: confirmed ? 'var(--success)' : 'var(--acid)', color: '#fff',
-        fontFamily: 'inherit', fontSize: 15, fontWeight: 500,
-        cursor: (!promoApplied && !cardComplete) || confirming || confirmed ? 'not-allowed' : 'pointer',
-        opacity: !promoApplied && !cardComplete ? 0.55 : 1,
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-        transition: 'background 0.2s, opacity 0.2s',
-      }}
-    >
-      {confirmed ? (<><Check size={18} /> Premium activated!</>)
-        : confirming ? (<><Spinner size={16} /> Processing…</>)
-        : promoApplied ? (<>Confirm payment · {PLAN_ZERO}</>)
-        : cardComplete ? (<>Confirm payment · {PLAN_PRICE}</>)
-        : (<>Enter payment details</>)}
-    </button>
+  const codeCard = (
+    <div style={cardShell}>
+      <h2 style={sectionLabel}><KeyRound size={13} /> Have an invite code?</h2>
+      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+        <input
+          type="text" autoComplete="off"
+          placeholder="EJG-XXXX-XXXX" maxLength={20}
+          value={inviteCode}
+          onChange={e => { setInviteCode(e.target.value.toUpperCase()); setCodeError(null); }}
+          onKeyDown={e => { if (e.key === 'Enter') handleActivate(); }}
+          aria-label="Invite code"
+          style={{
+            flex: 1, minWidth: 0, height: 44, fontSize: 15, borderRadius: 8, padding: '0 12px',
+            border: `1px solid ${codeError ? 'var(--danger)' : 'var(--border)'}`,
+            background: 'var(--bg-surface, var(--surface-solid))',
+            color: 'var(--text-primary)', fontFamily: 'inherit', outline: 'none',
+            letterSpacing: '0.08em', textTransform: 'uppercase',
+          }}
+        />
+        <button
+          type="button"
+          onClick={handleActivate}
+          disabled={!inviteCode.trim() || activating || activated}
+          style={{
+            height: 44, padding: '0 20px', flexShrink: 0, borderRadius: 8,
+            background: activated ? 'var(--success, #22c55e)' : 'var(--acid)',
+            color: '#fff', border: 'none', fontFamily: 'inherit', fontSize: 15, fontWeight: 600,
+            cursor: !inviteCode.trim() || activating || activated ? 'default' : 'pointer',
+            opacity: !inviteCode.trim() && !activated ? 0.6 : 1,
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          {activated ? (<><Check size={15} /> Activated!</>)
+            : activating ? (<><Spinner size={15} /></>)
+            : 'Activate'}
+        </button>
+      </div>
+      {codeError && (
+        <p style={{ margin: '8px 0 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--danger)' }}>{codeError}</p>
+      )}
+      {activated && (
+        <p style={{ margin: '8px 0 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--success, #22c55e)' }}>
+          Premium activated — taking you to jobs…
+        </p>
+      )}
+    </div>
   );
 
-  // No pre-click promo steering: the card path must look live so the
-  // "Confirm payment" click is a clean willingness-to-pay signal. The
-  // decline message after the click points to the promo code instead.
-  const betaNotice = null;
-
-  const legalNotice = (
-    <p style={{ margin: '12px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-      By confirming, you agree to our{' '}
-      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Terms</a> and{' '}
-      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Privacy Policy</a>.
-    </p>
+  const orDivider = (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '14px 0' }}>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>or</span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
   );
-
-  const confirmErrorEl = confirmError ? (
-    <p style={{ margin: '10px 0 0', fontSize: '0.82rem', fontWeight: 600, color: 'var(--danger)', textAlign: 'center' }}>{confirmError}</p>
-  ) : null;
 
   const trustFooter = (
-    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 10 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16, marginTop: 14 }}>
       {[
-        { icon: <Lock size={13} />, text: 'Secure checkout' },
+        { icon: <CreditCard size={13} />, text: 'No credit card' },
+        { icon: <Zap size={13} />, text: 'Instant activation' },
         { icon: <RefreshCw size={13} />, text: 'Cancel anytime' },
-        { icon: <Check size={13} />, text: 'No surprise charges' },
       ].map((t, i) => (
         <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-muted)' }}>
           {t.icon} {t.text}
@@ -472,27 +322,16 @@ export default function PremiumCheckout() {
     </div>
   );
 
-  // ── Layout ──────────────────────────────────────────────────────────────
-  const rightColumn = (
-    <div style={{
-      background: 'var(--surface-solid)', border: '1.25px solid var(--border)',
-      borderRadius: 16, padding: isMobile ? 20 : 20, boxShadow: 'var(--shadow-md)',
-    }}>
-      {paymentForm}
-      {!isMobile && (
-        <div style={{ marginTop: 14 }}>
-          {confirmButton}
-          {betaNotice}
-          {confirmErrorEl}
-          {legalNotice}
-          {trustFooter}
-        </div>
-      )}
-    </div>
+  const legalNotice = (
+    <p style={{ margin: '10px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+      By activating, you agree to our{' '}
+      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Terms</a> and{' '}
+      <a href="/legal" style={{ color: 'var(--acid)', textDecoration: 'none' }}>Privacy Policy</a>.
+    </p>
   );
 
   return (
-    <div style={{ background: 'var(--paper)', minHeight: '90vh', padding: isMobile ? '20px 16px 0' : '18px 24px 20px' }}>
+    <div style={{ background: 'var(--paper)', minHeight: '90vh', padding: isMobile ? '20px 16px 32px' : '18px 24px 20px' }}>
       <div style={{ maxWidth: 980, margin: '0 auto' }}>
         <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.4rem, 2.4vw, 1.7rem)', color: 'var(--text-primary)', margin: '0 0 2px' }}>
           Upgrade to <em style={{ fontStyle: 'italic', color: '#b98a2e' }}>Premium</em>
@@ -503,23 +342,14 @@ export default function PremiumCheckout() {
 
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1.15fr', gap: isMobile ? 16 : 24, alignItems: 'start' }}>
           {planSummary}
-          {rightColumn}
-        </div>
-
-        {/* Mobile: sticky confirm bar with a fade so content reads under it. */}
-        {isMobile && (
-          <div style={{
-            position: 'sticky', bottom: 0, left: 0, right: 0, zIndex: 20,
-            margin: '16px -16px 0', padding: '16px', paddingBottom: 'calc(16px + env(safe-area-inset-bottom))',
-            background: 'linear-gradient(to top, var(--paper) 55%, transparent)',
-          }}>
-            {confirmErrorEl}
-            {confirmButton}
-            {betaNotice}
-            {legalNotice}
+          <div>
+            {waitlistCard}
+            {orDivider}
+            {codeCard}
             {trustFooter}
+            {legalNotice}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

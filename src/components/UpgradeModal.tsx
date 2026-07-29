@@ -27,7 +27,7 @@ import { track } from '../utils/analytics';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import type { GateReason, GateUsage } from '../types';
 
-export const PREMIUM_PRICE_LABEL = 'Upgrade to Premium — €14.99/6 months';
+export const PREMIUM_PRICE_LABEL = 'Get early access — free for 3 months';
 
 /**
  * Relative label for the next counter reset. `dateStr` is the LAST reset

@@ -210,11 +210,12 @@ export function clearUsageCache(): void {
 }
 
 /**
- * POST /api/auth/payment-intent — records that the user attempted a card
- * payment (willingness-to-pay signal during beta). Sends NO card data.
+ * POST /api/auth/join-waitlist — requests a personal Premium invite code,
+ * emailed a few minutes later. Throws ApiError (body.error === 'already_premium'
+ * when the user already has premium).
  */
-export async function recordPaymentIntent(): Promise<{ accepted: boolean }> {
-    return apiPost('/api/auth/payment-intent');
+export async function joinWaitlist(): Promise<{ success?: boolean; alreadyJoined?: boolean; message: string }> {
+    return apiPost('/api/auth/join-waitlist');
 }
 
 /** POST /api/auth/redeem-promo. Throws ApiError (with .body) on an invalid code. */

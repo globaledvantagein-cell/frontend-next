@@ -54,9 +54,13 @@ export default function SmartMatch() {
     }
   }, [authLoading, isAdmin, usage, isPremium]);
 
-  // Check if user has a stored profile + load cached results
+  // Check if user has a stored profile + load cached results.
+  // Premium-gated: non-premium users see the pitch and never hit the
+  // (403-ing) resume-match endpoint. Mirrors the render gate below —
+  // admins are always premium; others need usage loaded first.
+  const premiumKnown = isAdmin || (usage !== null && isPremium);
   useEffect(() => {
-    if (authLoading || !token) return;
+    if (authLoading || !token || !premiumKnown) return;
     apiGet<{ parsedProfile?: unknown }>('/api/auth/me')
       .then(data => setHasProfile(!!data?.parsedProfile))
       .catch(() => setHasProfile(false));
@@ -70,7 +74,7 @@ export default function SmartMatch() {
         }
       })
       .catch(() => { /* no cache, that's fine */ });
-  }, [token, authLoading]);
+  }, [token, authLoading, premiumKnown]);
 
   const runMatch = async (payload?: { text: string }) => {
     abortRef.current?.abort();
