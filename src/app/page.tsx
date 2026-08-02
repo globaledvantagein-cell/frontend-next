@@ -12,7 +12,7 @@ export const revalidate = 1800;
 export const metadata: Metadata = {
   title: 'English Jobs in Germany — No German Required',
   description:
-    'Find English-speaking jobs in Germany across Berlin, Munich, Hamburg and more. No German language required — every role is checked before it is listed.',
+    'Jobs in Germany for English speakers, expats and internationals. Browse English-speaking roles in Berlin, Munich, Hamburg and more — no German required, every listing checked.',
   alternates: { canonical: '/' },
 };
 

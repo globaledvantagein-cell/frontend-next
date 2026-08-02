@@ -26,9 +26,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!city) return { title: 'City not found' };
   const { totalJobs } = await fetchJobs({ search: city.slug, limit: 1, revalidate: 3600 });
   const title = `English Jobs in ${city.label} — No German Required`;
-  const description = `Browse ${totalJobs} English-speaking ${
+  const description = `${totalJobs} ${
     totalJobs === 1 ? 'job' : 'jobs'
-  } in ${city.label}, Germany. No German language required — every role is checked before it is listed.`;
+  } in ${city.label} for English speakers, expats and internationals. Work in ${city.label}, Germany without German — every role is checked before it is listed.`;
   return {
     title,
     description,

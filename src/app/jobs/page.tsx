@@ -3,9 +3,9 @@ import { Suspense } from 'react';
 import Dashboard from '@/page-components/Dashboard';
 
 export const metadata: Metadata = {
-  title: 'Browse English-Speaking Jobs in Germany',
+  title: 'Jobs in Germany for English Speakers — Browse All Roles',
   description:
-    'Search and filter English-speaking jobs across Germany by city, category, and company. No German required.',
+    'Find jobs in Germany for English speakers, expats and internationals. Search and filter English-speaking roles by city, category, salary and company. No German required.',
   alternates: { canonical: '/jobs' },
 };
 
