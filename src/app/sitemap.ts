@@ -11,6 +11,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, changeFrequency: 'daily', priority: 1.0, lastModified: now },
     { url: `${SITE_URL}/jobs`, changeFrequency: 'daily', priority: 0.9, lastModified: now },
+    // The remote vertical is a single filterable page — there are no
+    // /remote-jobs/[id] detail routes (jobs are deep-linked as ?id=), so
+    // nothing further to enumerate here.
+    { url: `${SITE_URL}/remote-jobs`, changeFrequency: 'daily', priority: 0.9, lastModified: now },
     { url: `${SITE_URL}/directory`, changeFrequency: 'weekly', priority: 0.8, lastModified: now },
     { url: `${SITE_URL}/alerts`, changeFrequency: 'monthly', priority: 0.7, lastModified: now },
     { url: `${SITE_URL}/legal`, changeFrequency: 'yearly', priority: 0.3, lastModified: now },

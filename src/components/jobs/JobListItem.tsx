@@ -37,8 +37,10 @@ export const DesktopJobCard = memo(
           ref={ref}
           onClick={onClick}
           style={{
+            // Border-only separation: an unselected card carries no fill, so
+            // the list reads as one surface with the page behind it.
             border:     selected ? '1px solid var(--acid)' : '1px solid var(--border)',
-            background: selected ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
+            background: selected ? 'var(--acid-soft)' : 'transparent',
             borderRadius: 8, padding: '12px 14px',
             textAlign: 'left', cursor: 'pointer', width: '100%',
           }}
@@ -91,7 +93,7 @@ export const MobileJobCard = memo(function MobileJobCard({ job, applied, onClick
         onClick={onClick}
         style={{
           border: '1px solid var(--border)', borderRadius: 10,
-          background: 'var(--bg-surface)', padding: '14px 12px',
+          background: 'transparent', padding: '14px 12px',
           textAlign: 'left', width: '100%',
         }}
       >

@@ -23,6 +23,7 @@ export const ADMIN_QUICK_LINKS: ReadonlyArray<readonly [string, string]> = [
 // and its route in App.tsx is behind the admin ProtectedRoute.
 export const PUBLIC_LINKS: ReadonlyArray<readonly [string, string]> = [
   ['/jobs',          'Browse Jobs'],
+  ['/remote-jobs',   'Remote Jobs'],
   ['/directory',     'Companies'],
   ['/career-guide',  'Career Guide'],
   ['/today-matches', "Today's Matches"],

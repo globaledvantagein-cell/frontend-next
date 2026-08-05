@@ -1,25 +1,35 @@
 'use client';
 
+/**
+ * The /remote-jobs dashboard — the free, global remote vertical.
+ *
+ * Structurally the same split-view as Dashboard.tsx (list left, detail right,
+ * mobile overlay, infinite scroll), but a separate component reading a separate
+ * pipeline end-to-end: useRemoteJobFilters → /api/remote-jobs → remoteJobs
+ * collection. Nothing here touches the German cache or its premium metering.
+ *
+ * Deliberately absent vs. Dashboard.tsx: premium gates, upgrade modals, signup
+ * gates, locked filters, and the Smart Match / Today's Matches integrations —
+ * those belong to the German niche product.
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from '@/compat/router';
 import MobileDetailOverlay from '../components/MobileDetailOverlay';
-import PublicJobDetail from '../components/PublicJobDetail';
+import RemoteJobDetail from '../components/RemoteJobDetail';
 import JobDetailSkeleton from '../components/JobDetailSkeleton';
-import SignupGate from '../components/SignupGate';
-import UpgradeModal from '../components/UpgradeModal';
 import { Button, EmptyState } from '../components/ui';
-import { DashboardFilterBar, MobileFilterSheet } from '../components/DashboardFilterBar';
-import { DesktopJobCard, MobileJobCard } from '../components/jobs/JobListItem';
-import { useAppliedJobs } from '../context/AppliedJobsContext';
-import { useAuth } from '../context/AuthContext';
-import type { GateReason, GateUsage } from '../types';
-import { BRAND } from '../theme/brand';
+import { RemoteFilterBar, RemoteMobileFilterSheet } from '../components/RemoteFilterBar';
+import { RemoteDesktopJobCard, RemoteMobileJobCard } from '../components/jobs/RemoteJobListItem';
+import type { IJob } from '../types';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { useJobFilters } from '../hooks/useJobFilters';
-import { useGatedJobDetail } from '../hooks/useGatedJobDetail';
-import { useDeepLinkJob } from '../hooks/useDeepLinkJob';
+import { useRemoteJobFilters } from '../hooks/useRemoteJobFilters';
+import { fetchRemoteJobDetail } from '../utils/remoteJobApi';
 
-export default function Dashboard() {
+// Dismissal is remembered per browser so the banner doesn't nag on every visit.
+const BANNER_DISMISS_KEY = 'ejg_remote_banner_dismissed';
+
+export default function RemoteDashboard() {
   const [searchParams] = useSearchParams();
   const companyParam    = searchParams.get('company');
   const searchParam     = searchParams.get('search');
@@ -28,26 +38,19 @@ export default function Dashboard() {
   const {
     filters, setFilters, clearFilters, hasActiveFilters, activeFilterCount,
     companyOptions, categoryOptions, facetCounts,
-    jobs, setJobs, totalJobs, hasMore,
-    loading, loadingMore, loadMore, updateJob,
-  } = useJobFilters(companyParam || undefined, searchParam || undefined);
-
-  const { isApplied } = useAppliedJobs();
-  const { isPremium } = useAuth();
+    jobs, totalJobs, hasMore,
+    loading, loadingMore, loadMore,
+  } = useRemoteJobFilters(companyParam || undefined, searchParam || undefined);
 
   const [selectedJobId,    setSelectedJobId]    = useState<string | null>(null);
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
   const [splitHeight,      setSplitHeight]      = useState<number | null>(null);
-  const [filterSheetOpen,  setFilterSheetOpen]  = useState(false);
   const [openDropdown,     setOpenDropdown]     = useState<string | null>(null);
-  const [forceGate,        setForceGate]        = useState(false);
-  // The active upgrade/gate modal (null = closed). Reused for JD-limit,
-  // apply-limit, signup, and premium-filter gates.
-  const [gateModal,        setGateModal]        = useState<{ reason: GateReason; usage?: GateUsage | null } | null>(null);
+  const [filterSheetOpen,  setFilterSheetOpen]  = useState(false);
+  const [bannerDismissed,  setBannerDismissed]  = useState(true); // assume dismissed pre-hydration
 
   const isMobile = useMediaQuery('(max-width: 767px)');
 
-  const heroRef        = useRef<HTMLDivElement | null>(null);
   const filtersRef     = useRef<HTMLDivElement | null>(null);
   const splitViewRef   = useRef<HTMLDivElement | null>(null);
   const listPanelRef   = useRef<HTMLDivElement | null>(null);
@@ -55,7 +58,17 @@ export default function Dashboard() {
   const desktopJobRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const savedScrollRef = useRef(0);
 
-  useEffect(() => { document.title = `${BRAND.appName} Jobs`; }, []);
+  // localStorage is client-only; reading it in an effect keeps the first client
+  // render identical to the server HTML (banner hidden), then reveals it.
+  useEffect(() => {
+    try { setBannerDismissed(localStorage.getItem(BANNER_DISMISS_KEY) === '1'); }
+    catch { setBannerDismissed(false); }
+  }, []);
+
+  const dismissBanner = useCallback(() => {
+    setBannerDismissed(true);
+    try { localStorage.setItem(BANNER_DISMISS_KEY, '1'); } catch { /* private mode — fine */ }
+  }, []);
 
   // ── Auto-select first job ───────────────────────────────────────────────
   useEffect(() => {
@@ -71,26 +84,17 @@ export default function Dashboard() {
     }
   }, [jobs, selectedJobId, isMobile]);
 
-  // ── Deep-link handling (extracted into a hook) ──────────────────────────
-  const handleDeepLinkResolve = useCallback((job: any, mobile: boolean) => {
-    setSelectedJobId(job._id);
-    if (mobile) {
+  // ── Deep link (?id=) — select it once the first page has landed ──────────
+  const deepLinkHandledRef = useRef(false);
+  useEffect(() => {
+    if (!deepLinkedJobId || loading || deepLinkHandledRef.current) return;
+    deepLinkHandledRef.current = true;
+    setSelectedJobId(deepLinkedJobId);
+    if (isMobile) {
       savedScrollRef.current = window.scrollY;
       setMobileDetailOpen(true);
     }
-  }, []);
-  const prependJob = useCallback((job: any) => {
-    setJobs(prev => prev.some(j => j._id === job._id) ? prev : [job, ...prev]);
-  }, [setJobs]);
-
-  useDeepLinkJob({
-    deepLinkedJobId,
-    jobs,
-    loading,
-    isMobile,
-    onResolve: handleDeepLinkResolve,
-    prepend: prependJob,
-  });
+  }, [deepLinkedJobId, loading, isMobile]);
 
   // ── Auto-scroll to selected card on desktop ─────────────────────────────
   useEffect(() => {
@@ -111,7 +115,7 @@ export default function Dashboard() {
       setSplitHeight(Math.max(window.innerHeight - top - 4, 320));
     };
     const observer = new ResizeObserver(update);
-    const nodes = [heroRef.current, filtersRef.current, splitViewRef.current].filter(Boolean) as Element[];
+    const nodes = [filtersRef.current, splitViewRef.current].filter(Boolean) as Element[];
     nodes.forEach(n => observer.observe(n));
     window.addEventListener('resize', update);
     update();
@@ -135,40 +139,28 @@ export default function Dashboard() {
     return () => observer.disconnect();
   }, [loading, hasMore, loadMore, isMobile]);
 
-  // ── Selected job / gated detail ─────────────────────────────────────────
-  const selectedTeaser = useMemo(
-    () => (selectedJobId ? jobs.find(job => job._id === selectedJobId) ?? null : null),
-    [jobs, selectedJobId],
-  );
+  // ── Selected job detail — always ungated, so a plain fetch is enough ─────
+  const [detail, setDetail] = useState<IJob | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  const { job: fullJob, gated, teaser: gatedTeaser, gateReason, usage: gateUsage, loading: detailLoading, refetch: refetchDetail } =
-    useGatedJobDetail(selectedJobId, selectedTeaser);
+  useEffect(() => {
+    if (!selectedJobId) {
+      setDetail(null);
+      return;
+    }
+    const ctrl = new AbortController();
+    setDetailLoading(true);
+    fetchRemoteJobDetail(selectedJobId, { signal: ctrl.signal })
+      .then(job => { if (!ctrl.signal.aborted) setDetail(job); })
+      .catch(err => {
+        if (err?.name !== 'AbortError') console.error('[RemoteDashboard] detail error:', err);
+      })
+      .finally(() => { if (!ctrl.signal.aborted) setDetailLoading(false); });
+    return () => ctrl.abort();
+  }, [selectedJobId]);
 
   const desktopSplitHeight = splitHeight ? `${splitHeight}px` : undefined;
 
-  // Reset forceGate when selection changes
-  useEffect(() => { setForceGate(false); }, [selectedJobId]);
-
-  // A gated JD-detail response pops the UpgradeModal. signup_required also keeps
-  // the in-panel SignupGate (below) so the panel isn't blank behind the modal.
-  useEffect(() => {
-    if (gated && gateReason) setGateModal({ reason: gateReason, usage: gateUsage });
-  }, [gated, gateReason, gateUsage]);
-
-  const handleApplyLimit = useCallback((usage?: GateUsage | null) => {
-    setGateModal({ reason: 'apply_limit', usage });
-  }, []);
-  const handlePremiumFilter = useCallback(() => {
-    setGateModal({ reason: 'premium_required' });
-  }, []);
-
-  const handleApplyTracked = useCallback((jobId: string, applyClicks: number) => {
-    updateJob(jobId, { applyClicks });
-  }, [updateJob]);
-
-  // Memoized click handlers per row would require a per-job factory, but the
-  // hot path here (re-renders on selection change) is dominated by the list
-  // items themselves which are memoized. Inline closures are fine.
   const handleDesktopClick = (jobId: string) => () => setSelectedJobId(jobId);
   const handleMobileClick  = (jobId: string) => () => {
     setSelectedJobId(jobId);
@@ -180,57 +172,9 @@ export default function Dashboard() {
     if (!selectedJobId) {
       return <EmptyState title="Select a job from the list to view details" body="Pick any role on the left panel." />;
     }
-    if (forceGate) {
-      return (
-        <SignupGate
-          teaser={selectedTeaser || undefined}
-          onAuthSuccess={() => { setForceGate(false); refetchDetail(); }}
-        />
-      );
-    }
-    if (detailLoading && !fullJob && !gated) {
-      return <JobDetailSkeleton />;
-    }
-    if (gated) {
-      // Anonymous visitor → the Google-auth SignupGate is the right surface.
-      if (gateReason === 'signup_required') {
-        return <SignupGate teaser={gatedTeaser || selectedTeaser || undefined} onAuthSuccess={refetchDetail} />;
-      }
-      // Signed-in free user (jd_limit) or premium-gated content → a light teaser
-      // backdrop; the UpgradeModal (opened by the effect above) is the CTA.
-      const t = gatedTeaser || selectedTeaser;
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '32px 20px', maxWidth: 440, margin: '0 auto', gap: 12 }}>
-          <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', color: 'var(--text-primary)', margin: 0 }}>
-            {t?.JobTitle || 'Weekly limit reached'}
-          </h2>
-          {t?.Company && (
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
-              {t.Company}{(t as any)?.Location ? ` · ${(t as any).Location}` : ''}
-            </p>
-          )}
-          {(gatedTeaser?.descriptionPreview) && (
-            <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>
-              {gatedTeaser.descriptionPreview}
-            </p>
-          )}
-          <Button size="sm" onClick={() => setGateModal({ reason: gateReason || 'jd_limit', usage: gateUsage })}>
-            Upgrade to see the full description
-          </Button>
-        </div>
-      );
-    }
-    if (fullJob) {
-      return (
-        <PublicJobDetail
-          job={fullJob}
-          onApplyTracked={handleApplyTracked}
-          onAuthRequired={() => setForceGate(true)}
-          onApplyLimit={handleApplyLimit}
-        />
-      );
-    }
-    return null;
+    if (detailLoading && !detail) return <JobDetailSkeleton />;
+    if (detail) return <RemoteJobDetail job={detail} />;
+    return <EmptyState title="Couldn’t load this job" body="It may have been filled or removed." />;
   };
 
   const loadMoreIndicator = (
@@ -273,7 +217,7 @@ export default function Dashboard() {
 
   const emptyState = (
     <EmptyState
-      title="No jobs match your filters"
+      title="No remote jobs match your filters"
       body={hasActiveFilters ? 'Try adjusting your search or filters.' : 'No roles are currently available.'}
       action={hasActiveFilters ? <Button variant="ghost" size="sm" onClick={clearFilters}>Clear all filters</Button> : undefined}
     />
@@ -281,17 +225,45 @@ export default function Dashboard() {
 
   return (
     <div style={{ background: 'var(--bg-base)', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      {/* Hero removed — filters are the first thing visible */}
-      <div ref={heroRef} style={{ display: 'none' }} />
-
-      {/* .dashboard-shell (globals.css) — shared with /remote-jobs so both job
-          pages have an identical width, centering, and gutters: 1440px cap,
-          20px sides. The split-grid fills it within those gutters. */}
+      {/* .dashboard-shell (globals.css) — the SAME container /jobs uses:
+          1440px cap, centered, 20px gutters. */}
       <div className="dashboard-shell" style={{ paddingTop: 10 }}>
+
+        {/* One-line muted intro banner, dismissible. Border only — no fill, so
+            it sits on the page background like everything else. */}
+        {!bannerDismissed && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              fontSize: '0.78rem', color: 'var(--text-muted)',
+              background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: 8, padding: '7px 12px', marginBottom: 8, flexShrink: 0,
+            }}
+          >
+            <span style={{ flex: 1, minWidth: 0 }}>
+              🌍 Fully remote positions from companies in the US, UK, Canada, Australia, and more. Work from anywhere.
+            </span>
+            <button
+              type="button"
+              onClick={dismissBanner}
+              aria-label="Dismiss"
+              style={{
+                background: 'none', border: 'none', padding: '0 2px', cursor: 'pointer',
+                color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1, flexShrink: 0, fontFamily: 'inherit',
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {/* No box: transparent, no border, no side padding — the bar sits
             directly on the page background. */}
         <div ref={filtersRef} style={{ marginBottom: 10, flexShrink: 0 }}>
-          <DashboardFilterBar
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>
+            Remote Jobs
+          </h1>
+          <RemoteFilterBar
             filters={filters} setFilters={setFilters}
             companyOptions={companyOptions} categoryOptions={categoryOptions}
             facetCounts={facetCounts}
@@ -300,12 +272,11 @@ export default function Dashboard() {
             clearFilters={clearFilters}
             openDropdown={openDropdown} setOpenDropdown={setOpenDropdown}
             onOpenFilterSheet={() => setFilterSheetOpen(true)}
-            isPremium={isPremium} onPremiumRequired={handlePremiumFilter}
           />
         </div>
 
         {filterSheetOpen && isMobile && (
-          <MobileFilterSheet
+          <RemoteMobileFilterSheet
             filters={filters} setFilters={setFilters}
             companyOptions={companyOptions} categoryOptions={categoryOptions}
             facetCounts={facetCounts}
@@ -313,7 +284,6 @@ export default function Dashboard() {
             hasActiveFilters={hasActiveFilters} clearFilters={clearFilters}
             openDropdown={openDropdown} setOpenDropdown={setOpenDropdown}
             onClose={() => setFilterSheetOpen(false)}
-            isPremium={isPremium} onPremiumRequired={handlePremiumFilter}
           />
         )}
 
@@ -333,12 +303,11 @@ export default function Dashboard() {
                 {jobs.length === 0 ? emptyState : (
                   <>
                     {jobs.map(job => (
-                      <DesktopJobCard
+                      <RemoteDesktopJobCard
                         key={job._id}
                         ref={node => { desktopJobRefs.current[job._id] = node; }}
                         job={job}
                         selected={selectedJobId === job._id}
-                        applied={isApplied(job._id)}
                         onClick={handleDesktopClick(job._id)}
                       />
                     ))}
@@ -371,7 +340,7 @@ export default function Dashboard() {
           ) : jobs.length === 0 ? emptyState : (
             <>
               {jobs.map(job => (
-                <MobileJobCard key={job._id} job={job} applied={isApplied(job._id)} onClick={handleMobileClick(job._id)} />
+                <RemoteMobileJobCard key={job._id} job={job} onClick={handleMobileClick(job._id)} />
               ))}
               {loadMoreIndicator}
             </>
@@ -390,14 +359,6 @@ export default function Dashboard() {
           </MobileDetailOverlay>
         )}
       </div>
-
-      {gateModal && (
-        <UpgradeModal
-          gateReason={gateModal.reason}
-          usage={gateModal.usage}
-          onClose={() => setGateModal(null)}
-        />
-      )}
     </div>
   );
 }

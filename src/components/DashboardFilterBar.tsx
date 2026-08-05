@@ -6,7 +6,7 @@
  * from ./filters/jobFilterSelects.
  */
 import { useState, useEffect, useRef } from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, SlidersHorizontal, X, Crown } from 'lucide-react';
 import { Input } from './ui';
 import { FILTER_CONTROL_STYLE, type FilterState, type FilterDropdownOption } from '../hooks/useJobFilters';
 import { WORKPLACE_OPTIONS, EXPERIENCE_OPTIONS, EMPLOYMENT_OPTIONS, type IFacetCounts } from '../hooks/jobFilterTypes';
@@ -35,6 +35,56 @@ function salaryPill(min: string, max: string): string {
   if (lo) return `${lo}+`;
   return `≤${hi}`;
 }
+
+// Gold used for the popover's Premium badge. Hard-coded rather than a theme
+// token because there is no --text-warning in themes.ts; --warning (#D97706)
+// is the amber alert color, which reads as a warning, not as a paid tier.
+const PREMIUM_GOLD = '#C9A84C';
+
+/**
+ * The "More filters" popover's Premium badge — a real badge, not a footnote.
+ * Local to this file so the shared PremiumBadge (still used by the mobile
+ * sheet and the locked-control overlays) is left untouched.
+ */
+function PopoverPremiumBadge() {
+  return (
+    <span
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 4,
+        fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.08em',
+        textTransform: 'uppercase', color: PREMIUM_GOLD, lineHeight: 1.4,
+        border: `1px solid ${PREMIUM_GOLD}`, borderRadius: 6,
+        padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0,
+      }}
+    >
+      <Crown size={12} aria-hidden />
+      Premium
+    </span>
+  );
+}
+
+/**
+ * Text-weight bumps for the controls INSIDE the "More filters" popover.
+ *
+ * FilterDropdown and jobFilterSelects set their weights as inline styles, which
+ * beat any class rule — so overriding them without editing those shared
+ * components needs `!important`, scoped to `.more-filters-popover` so nothing
+ * else in the app (the mobile sheet, the always-visible row, /remote-jobs) is
+ * affected. The dropdown option lists portal to <body>, so they're outside this
+ * scope and keep their own styling.
+ */
+const POPOVER_TEXT_CSS = `
+.more-filters-popover button.filter-pill { font-weight: 500 !important; }
+/* An active dropdown renders a dot <span> nested inside its label <span>;
+   that nesting is the only marker of active state in the DOM, so it's how we
+   keep active triggers heavier than the 500 baseline above. */
+.more-filters-popover button.filter-pill:has(> span > span) { font-weight: 600 !important; }
+/* Toggle chips (Visa sponsor / Relocation / Has salary) — aria-pressed is a
+   reliable active flag here, unlike the dropdown triggers. */
+.more-filters-popover button[aria-pressed="true"] { font-weight: 600 !important; }
+/* The count beside each chip (0, 0, 2) — a direct-child span of the chip. */
+.more-filters-popover button[aria-pressed] > span:last-child { font-weight: 600 !important; }
+`;
 
 interface FilterBarProps {
   filters: FilterState;
@@ -184,7 +234,7 @@ export function DashboardFilterBar({
               style={{
                 height: 34, paddingInline: 14, borderRadius: 999, border: '1px solid',
                 borderColor: activeFilterCount > 0 ? 'var(--acid)' : 'var(--border)',
-                background: activeFilterCount > 0 ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
+                background: activeFilterCount > 0 ? 'var(--acid-soft)' : 'transparent',
                 color: activeFilterCount > 0 ? 'var(--acid)' : 'var(--text-secondary)',
                 fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap',
               }}
@@ -220,18 +270,21 @@ export function DashboardFilterBar({
               <div
                 role="dialog"
                 aria-label="More filters"
+                className="more-filters-popover"
                 style={{
                   position: 'absolute', top: '100%', left: 0, marginTop: 6, zIndex: 40,
-                  background: 'var(--bg-surface-2)', border: '1px solid var(--border)', borderRadius: 12,
+                  background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 12,
                   boxShadow: '0 8px 30px rgba(0,0,0,0.12)', padding: '16px 20px',
                   minWidth: 600, maxWidth: 800,
                 }}
               >
+                <style>{POPOVER_TEXT_CSS}</style>
+
                 {/* Row 1 — Workplace / Experience / Employment / Company */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                   <AttributeSelects {...dropdownProps} />
                   <CompanySelect {...baseSelect} companyOptions={companyOptions} />
-                  {!isPremium && <PremiumBadge />}
+                  {!isPremium && <PopoverPremiumBadge />}
                 </div>
 
                 {/* Row 2 — Visa / Relocation / Has salary · divider · Salary range */}
@@ -344,7 +397,7 @@ export function MobileFilterSheet({
       />
       <div style={{
         position: 'absolute', bottom: 0, left: 0, right: 0,
-        background: 'var(--bg-surface)', borderRadius: '20px 20px 0 0',
+        background: 'var(--bg-base)', borderRadius: '20px 20px 0 0',
         padding: '16px 16px calc(16px + env(safe-area-inset-bottom))',
         maxHeight: '80dvh', display: 'flex', flexDirection: 'column',
       }}>
@@ -380,7 +433,7 @@ export function MobileFilterSheet({
           {hasActiveFilters && (
             <button
               onClick={() => { clearFilters(); onClose(); }}
-              style={{ flex: 1, height: 46, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-surface-2)', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer' }}
+              style={{ flex: 1, height: 46, borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', fontSize: '0.9rem', cursor: 'pointer' }}
             >
               Clear all
             </button>

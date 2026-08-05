@@ -1121,18 +1121,36 @@ body::before {
   }
 }
 
+/* No max-width here: the grid fills its container, and the page container
+   (.dashboard-shell) owns the 1440px cap. A second cap on the grid used to
+   fight the container and leave dead space on wide screens. */
 @media (min-width: 1440px) {
   .split-grid {
     grid-template-columns: 30% 70%;
-    max-width: 1600px;
   }
 }
 
 @media (min-width: 1920px) {
   .split-grid {
     grid-template-columns: 28% 72%;
-    max-width: 1800px;
   }
+}
+
+/* ── Dashboard page shell ────────────────────────────────
+   One container for BOTH job pages (/jobs and /remote-jobs) so their width,
+   centering, and gutters are identical. Nothing inside adds side padding. */
+.dashboard-shell {
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  /* 20px side gutters so content never sits flush against the viewport edge.
+     Everything inside — filter bar, split-grid, mobile list — inherits this
+     gutter, so no child adds its own left/right padding on top of it. */
+  padding: 0 18px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .mobile-list-only {
