@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from '@/compat/router';
-import { ClipboardList, RefreshCw, ArrowRight, FlaskConical, Globe, Trash2 } from 'lucide-react';
+import { ClipboardList, RefreshCw, ArrowRight, FlaskConical, Globe, Trash2, ShieldCheck } from 'lucide-react';
 import { Container, PageHeader, Button, StatCard } from '../components/ui';
 import { apiGet, apiPost } from '../utils/jobApi';
 import { ADMIN_QUICK_LINKS } from '../components/layout/navLinks';
@@ -10,7 +10,17 @@ import { ADMIN_QUICK_LINKS } from '../components/layout/navLinks';
 interface CleanSummary { total: number; cleaned: number; alreadyClean: number; }
 interface BackfillSummary { total: number; updated: number; logsTotal: number; logsUpdated: number; message: string; }
 interface SalaryFixSummary { total: number; fixed: number; }
-interface DbCounts { testLogs: number; pendingReview: number; activeJobs: number; rejectedJobs: number; }
+interface DbCounts {
+  testLogs: number;
+  /** Total awaiting review — matches the review page. Kept for compatibility. */
+  pendingReview: number;
+  /** Not live: blocked until an admin decides. */
+  pendingDecision: number;
+  /** Already live: auto-published, unconfirmed by a human. */
+  awaitingConfirmation: number;
+  activeJobs: number;
+  rejectedJobs: number;
+}
 
 export default function AdminDashboard() {
   // auth state — not used directly; ProtectedRoute already ensures admin access
@@ -76,9 +86,30 @@ export default function AdminDashboard() {
     }
   };
 
+  // The review queue holds two different things, and conflating them is
+  // misleading: one is a backlog, the other is already published.
+  //
+  //   Needs Decision       — NOT live. Blocked until an admin accepts/rejects.
+  //   Awaiting Confirmation — ALREADY live. Auto-published on high confidence,
+  //                           just unverified by a human. Nothing is blocked.
+  //
+  // The dashboard used to show only the first under the label "Review Queue"
+  // while the page it links to listed both, so the two never agreed (216 vs
+  // 346). Splitting them makes the backlog readable at a glance.
   const DB_COUNTS = [
     { icon: <FlaskConical size={18} />, value: counts?.testLogs ?? '–', label: 'Test Logs', accent: false },
-    { icon: <ClipboardList size={18} />, value: counts?.pendingReview ?? '–', label: 'Review Queue', accent: counts !== null && (counts.pendingReview > 0) },
+    {
+      icon: <ClipboardList size={18} />,
+      value: counts?.pendingDecision ?? '–',
+      label: 'Needs Decision',
+      accent: counts !== null && counts.pendingDecision > 0,
+    },
+    {
+      icon: <ShieldCheck size={18} />,
+      value: counts?.awaitingConfirmation ?? '–',
+      label: 'Awaiting Confirmation',
+      accent: false,
+    },
     { icon: <Globe size={18} />, value: counts?.activeJobs ?? '–', label: 'Live Jobs', accent: false },
     { icon: <Trash2 size={18} />, value: counts?.rejectedJobs ?? '–', label: 'Trash', accent: false },
   ];
@@ -95,7 +126,7 @@ export default function AdminDashboard() {
                 <Button variant="ghost" size="sm" onClick={cleanDescriptions} loading={cleaning}>Clean All Descriptions</Button>
                 <Button variant="ghost" size="sm" onClick={backfillExperience} loading={backfilling}>Backfill Experience Levels</Button>
                 <Button variant="ghost" size="sm" onClick={fixSalaries} loading={fixingSalaries}>Fix Salaries</Button>
-                <Link to="/review"><Button size="sm">Review Queue <ArrowRight size={13} /></Button></Link>
+                <Link to="/review"><Button size="sm">Review Queue{counts ? ` (${counts.pendingReview})` : ''} <ArrowRight size={13} /></Button></Link>
               </div>
             } />
         </Container>
