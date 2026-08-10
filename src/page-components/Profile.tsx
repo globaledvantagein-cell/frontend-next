@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Link, useNavigate } from '@/compat/router';
-import { Bookmark, Clock, SlidersHorizontal, User as UserIcon, LogOut, Crown } from 'lucide-react';
+import { Bookmark, Check, Clock, SlidersHorizontal, User as UserIcon, LogOut, Crown } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSavedJobs } from '../context/SavedJobsContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -337,8 +337,102 @@ function formatDate(dateStr?: string | null): string {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Shown when there is no subscription record to load (the normal state for a
+// free user) — an invitation, not an error. Premium users with a real fetch
+// failure still get the error alert below.
+//
+// Visual language mirrors the /premium membership card (PremiumCheckout):
+// navy gradient + gold hairline, fixed colors on purpose so it reads
+// identically in both themes and profile → /premium feels like one moment.
+function PremiumInviteCard() {
+  const navigate = useNavigate();
+  const gold = '#d4a94a';
+  const cardMuted = '#8a94a6';
+  const perks = [
+    'Unlimited job description views',
+    'Unlimited apply clicks',
+    'Smart Match — AI resume scoring',
+    "Today's Matches — daily personalized picks",
+    'Advanced filters — salary, visa, relocation, experience, workplace',
+  ];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', marginTop: 24 }}>
+      <div style={{
+        background: 'linear-gradient(165deg, #131c29 0%, #0f1620 55%, #0c1219 100%)',
+        border: '1px solid rgba(212, 169, 74, 0.28)',
+        borderRadius: 14, padding: '14px 16px 12px', boxShadow: 'var(--shadow-md)',
+        position: 'relative', overflow: 'hidden', width: '100%', maxWidth: 520,
+      }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
+
+        <span style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          fontSize: '0.68rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+          color: gold,
+        }}>
+          <Crown size={13} /> Premium · Not active yet
+        </span>
+
+        <h3 style={{
+          fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.2rem', fontWeight: 700,
+          color: '#fff', margin: '8px 0 0', letterSpacing: '-0.01em', lineHeight: 1.2,
+        }}>
+          Your next role won&rsquo;t wait.
+        </h3>
+        <p style={{ margin: '4px 0 0', fontSize: '0.78rem', color: cardMuted, lineHeight: 1.45 }}>
+          Unlock everything the free plan holds back — from your first search to your signed offer.
+        </p>
+
+        <div style={{ height: 1, background: 'rgba(255,255,255,0.08)', margin: '10px 0 8px' }} />
+
+        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {perks.map(f => (
+            <li key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '0.8rem', color: '#c7d0dd', lineHeight: 1.4 }}>
+              <span style={{ color: gold, flexShrink: 0, marginTop: 1 }}><Check size={13} /></span>
+              {f}
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          onClick={() => navigate('/premium')}
+          style={{
+            marginTop: 12, width: '100%', height: 38,
+            background: `linear-gradient(90deg, ${gold}, #e6c069)`, color: '#0f1620',
+            border: 'none', borderRadius: 9, fontFamily: 'inherit', fontSize: '0.85rem', fontWeight: 800,
+            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+          }}
+        >
+          <Crown size={15} /> Unlock Premium
+        </button>
+        <p style={{ margin: '7px 0 0', fontSize: '0.7rem', color: cardMuted, textAlign: 'center', letterSpacing: '0.02em' }}>
+          No auto-renewal · No credit card required
+        </p>
+      </div>
+
+      <div style={{
+        background: 'linear-gradient(165deg, #131c29 0%, #0f1620 55%, #0c1219 100%)',
+        border: '1px solid rgba(212, 169, 74, 0.28)',
+        borderRadius: 12, padding: '12px 14px', width: '100%', maxWidth: 520,
+        position: 'relative', overflow: 'hidden',
+      }}>
+        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, transparent, ${gold}, transparent)` }} />
+        <p style={{
+          fontSize: '0.7rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+          color: gold, margin: '0 0 8px',
+        }}>
+          Have an invite code?
+        </p>
+        <PromoCodeForm variant="premium" />
+      </div>
+    </div>
+  );
+}
+
 function SubscriptionSection() {
   const navigate = useNavigate();
+  const { isPremium: authIsPremium } = useAuth();
   const [data, setData] = useState<SubscriptionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -352,6 +446,10 @@ function SubscriptionSection() {
 
   if (loading) return <div className="skeleton" style={{ height: 180, borderRadius: 12 }} />;
   if (error || !data) {
+    // A missing subscription record is the normal state for a free user —
+    // sell the upgrade instead of showing an error. Only premium users
+    // (who must have a record) see a real failure message.
+    if (!authIsPremium) return <PremiumInviteCard />;
     return <Alert type="error">Could not load your subscription details. Please refresh.</Alert>;
   }
 

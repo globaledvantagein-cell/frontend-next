@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { Link } from '@/compat/router';
 import { ExternalLink, Briefcase, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { apiGet } from '../utils/jobApi';
+import { apiGet, ApiError } from '../utils/jobApi';
 import { Container, Badge, Button } from '../components/ui';
 import { BRAND } from '../theme/brand';
 
@@ -29,6 +29,23 @@ interface AppliedJob {
   };
 }
 
+// Centered circular icon badge for empty/error states — a bare inline icon
+// sits on the text baseline and looks thrown in at random.
+function EmptyStateIcon() {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+      <span style={{
+        width: 56, height: 56, borderRadius: '50%',
+        background: 'var(--bg-surface-2)', border: '1px solid var(--border)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--text-muted)',
+      }}>
+        <Briefcase size={24} />
+      </span>
+    </div>
+  );
+}
+
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -38,7 +55,8 @@ export default function AppliedJobs() {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [jobs, setJobs] = useState<AppliedJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // 'auth' = expired/invalid session (backend "Invalid Token"); 'other' = anything else.
+  const [error, setError] = useState<'auth' | 'other' | null>(null);
 
   useEffect(() => {
     document.title = `Applied Jobs · ${BRAND.appName}`;
@@ -49,7 +67,7 @@ export default function AppliedJobs() {
     setLoading(true);
     apiGet<{ success: boolean; jobs: AppliedJob[] }>('/api/jobs/applied')
       .then(data => setJobs(data.jobs || []))
-      .catch(err => setError(err.message || 'Failed to load applied jobs'))
+      .catch(err => setError(err instanceof ApiError && (err.status === 401 || err.status === 403) ? 'auth' : 'other'))
       .finally(() => setLoading(false));
   }, [isAuthenticated, authLoading]);
 
@@ -59,7 +77,7 @@ export default function AppliedJobs() {
     return (
       <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
         <Container style={{ maxWidth: 600, padding: '60px 24px', textAlign: 'center' }}>
-          <Briefcase size={40} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
+          <EmptyStateIcon />
           <h1 style={{ fontFamily: "'Playfair Display',serif", fontSize: '1.6rem', color: 'var(--text-primary)', marginBottom: 10 }}>
             Your Applied Jobs
           </h1>
@@ -80,7 +98,7 @@ export default function AppliedJobs() {
             Applied Jobs
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.86rem', textAlign: 'center', marginTop: 6 }}>
-            {loading ? 'Loading…' : `${jobs.length} application${jobs.length !== 1 ? 's' : ''}`}
+            {loading ? 'Loading…' : error ? 'Track every job you apply to' : `${jobs.length} application${jobs.length !== 1 ? 's' : ''}`}
           </p>
         </Container>
       </div>
@@ -92,15 +110,37 @@ export default function AppliedJobs() {
           </div>
         )}
 
-        {error && (
-          <div style={{ padding: 20, background: 'var(--danger-soft)', borderRadius: 10, color: 'var(--danger)', fontSize: '0.88rem' }}>
-            {error}
+        {/* Errors never surface raw API messages ("Invalid Token") — an expired
+            session gets a sign-in prompt, anything else gets the same friendly
+            "start applying" invitation as the empty state. */}
+        {error === 'auth' && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <EmptyStateIcon />
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+              Session expired
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: 360, margin: '0 auto 20px' }}>
+              Sign in again to see your applications.
+            </p>
+            <Link to="/login"><Button size="sm">Sign in</Button></Link>
+          </div>
+        )}
+        {error === 'other' && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <EmptyStateIcon />
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+              Nothing to show just yet
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', maxWidth: 360, margin: '0 auto 20px' }}>
+              Your applications will appear here as soon as you apply. Fresh roles are waiting.
+            </p>
+            <Link to="/jobs"><Button size="sm">Browse jobs</Button></Link>
           </div>
         )}
 
         {!loading && !error && jobs.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
-            <Briefcase size={36} style={{ color: 'var(--text-muted)', marginBottom: 14 }} />
+            <EmptyStateIcon />
             <h2 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
               No applications yet
             </h2>

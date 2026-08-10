@@ -7,6 +7,7 @@ import { AuthProvider } from '../context/AuthContext';
 import { AppliedJobsProvider } from '../context/AppliedJobsContext';
 import { SavedJobsProvider } from '../context/SavedJobsContext';
 import CookieConsent from './CookieConsent';
+import PostHogInit from './PostHogInit';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -25,6 +26,7 @@ export default function Providers({ children }: { children: ReactNode }) {
         <AuthProvider>
           <AppliedJobsProvider>
             <SavedJobsProvider>
+              <PostHogInit />
               {children}
               <CookieConsent />
             </SavedJobsProvider>

@@ -1,99 +1,117 @@
 'use client';
 
-import { useState, useEffect, type CSSProperties, type FormEvent, type ReactNode } from 'react';
+import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useNavigate } from '@/compat/router';
-import { Check, Search, ShieldCheck, Sparkles, Globe, ArrowRight } from 'lucide-react';
 import type { IJob, ICompany } from '../types';
-import { useAuth } from '../context/AuthContext';
-import HomeSeoCard from '../components/seo/HomeSeoCard';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '../utils/categorize';
-import { careerCategoryLabel } from '../data/careerGuide';
+import CohortWaitlistModal from '../components/CohortWaitlistModal';
 
-// ── Static SEO data ──────────────────────────────────────────────────────────
-// "Popular roles" chips: the taxonomy has only 6 job categories (none named
-// Marketing/Design/Operations), so role chips that map to a category link to
-// /category/[slug]; the rest link to /jobs?search= so none 404.
-const POPULAR_ROLES: ReadonlyArray<readonly [string, string]> = [
-  ['Software Engineer', '/category/software'],
-  ['Product Manager', '/category/product_tech'],
-  ['Data & AI', '/category/data'],
-  ['Marketing', '/jobs?search=marketing'],
-  ['Design', '/jobs?search=design'],
-  ['Operations', '/jobs?search=operations'],
-];
+// ─────────────────────────────────────────────────────────────────────────────
+// Landing page — 1:1 port of the "Job Portal Landing" Claude Design file.
+// All wording is verbatim from the design. Colors map to theme variables so
+// dark mode stays readable:
+//   #fbfaf7 → --bg-base · #ffffff → --bg-surface · #f4f2ec → --bg-surface-2
+//   #12141a → --text-primary · #5b616a/#666c76/#4a4f57 → --text-secondary
+//   #868b91/#9a9e9f/#6b7076 → --text-muted · #e3e3dc → --border
+//   #d4d5cd → --border-strong · #246cf0 → --primary · #1758ca → --primary-hover
+//   #edf4ff → --primary-soft
+// The dark "Why us" / CTA bands use the inverted --ink/--paper pair.
+// The app's global nav and Footer render around this page (Layout.tsx), so the
+// design's header/footer are not duplicated here.
+// ─────────────────────────────────────────────────────────────────────────────
 
-const TOP_CITIES: ReadonlyArray<readonly [string, string]> = [
-  ['berlin', 'Berlin'], ['munich', 'Munich'], ['hamburg', 'Hamburg'],
-  ['frankfurt', 'Frankfurt'], ['stuttgart', 'Stuttgart'], ['cologne', 'Cologne'],
-];
+const SECTION_X = 'clamp(20px, 4vw, 32px)';
 
-const GRID_CITIES: ReadonlyArray<readonly [string, string]> = [
-  ['berlin', 'Berlin'], ['munich', 'Munich'], ['hamburg', 'Hamburg'], ['frankfurt', 'Frankfurt'],
-  ['stuttgart', 'Stuttgart'], ['cologne', 'Cologne'], ['dusseldorf', 'Düsseldorf'], ['leipzig', 'Leipzig'],
-  ['dresden', 'Dresden'], ['hanover', 'Hanover'], ['nuremberg', 'Nuremberg'], ['bonn', 'Bonn'],
-];
-
-const DIFFERENTIATORS = [
-  { Icon: ShieldCheck, title: 'No German Required', desc: 'Every listing verified — the job description is in English and German is not a requirement.' },
-  { Icon: Sparkles, title: 'AI-Filtered & Human-Reviewed', desc: 'We scan 500+ company career pages daily. Every listing is verified by AI and reviewed by a human before it goes live.' },
-  { Icon: Globe, title: 'Visa & Relocation Info', desc: 'We extract visa sponsorship and relocation support details from every job description, so you know before you apply.' },
-];
-
-// ── Layout constants ─────────────────────────────────────────────────────────
-// Narrower 1100px measure feels more focused (Linear/Stripe); 64/40 section rhythm.
-const PAGE: CSSProperties = {
-  maxWidth: 1100, margin: '0 auto',
-  paddingLeft: 'clamp(20px, 5vw, 32px)', paddingRight: 'clamp(20px, 5vw, 32px)',
-};
-const SECTION_PAD = 'clamp(40px, 6vw, 64px)';
-
-const chipStyle: CSSProperties = {
-  fontSize: '0.8rem', padding: '5px 14px', borderRadius: 20,
-  border: '1px solid var(--border)', color: 'var(--text-primary)',
-  background: 'transparent', textDecoration: 'none', whiteSpace: 'nowrap',
-};
-const viewAllLink: CSSProperties = {
-  color: 'var(--primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: 500,
-  display: 'inline-flex', alignItems: 'center', gap: 5,
-};
-const gridLinkStyle: CSSProperties = {
-  fontSize: '0.85rem', color: 'var(--text-secondary)', textDecoration: 'none',
-  display: 'inline-block', lineHeight: 2,
+const eyebrowStyle: CSSProperties = {
+  fontSize: 12, fontWeight: 850, textTransform: 'uppercase',
+  letterSpacing: '0.12em', color: 'var(--primary)',
 };
 
-// Section heading with a short brand-blue underline accent bar.
-function SectionHeading({ children }: { children: ReactNode }) {
-  return (
-    <div>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>{children}</h2>
-      <div style={{ width: 40, height: 3, background: 'var(--primary)', borderRadius: 2, marginTop: 8 }} />
-    </div>
-  );
+// Design copy — verbatim, do not edit.
+const STATS = [
+  { n: '25,000+', label: 'Jobs reviewed' },
+  { n: '2,500+', label: 'Curated jobs' },
+  { n: '200+', label: 'Hiring companies' },
+  { n: 'Daily', label: 'New job updates' },
+] as const;
+
+const TRUST_LOGOS = ['NORDIC AI', 'HELIOS TECH', 'BLAUWERK', 'FINORA', 'GREENFIELD', 'VECTRA'] as const;
+
+const STEPS = [
+  { n: '1', title: 'Search & filter', copy: 'Browse roles pre-screened for English-only requirements, by city, remote or field.' },
+  { n: '2', title: 'Apply direct', copy: 'Apply straight to the employer or recruiter — no extra accounts required.' },
+  { n: '3', title: 'Get hired', copy: 'Use our visa and relocation guides while you interview and negotiate your offer.' },
+] as const;
+
+const WHY_US = [
+  { title: 'Human-screened, not scraped', copy: 'Every listing is checked to confirm German fluency isn’t a hard requirement — not just keyword-filtered.' },
+  { title: 'Direct to the employer', copy: 'Apply straight to the company or recruiter behind each role, no forwarding through third parties.' },
+  { title: 'Updated daily', copy: 'New roles are added every day, so listings stay current instead of going stale.' },
+  { title: 'Built for relocation', copy: 'Visa and relocation guidance sits alongside the jobs, not in a separate resource you have to hunt for.' },
+] as const;
+
+const COACHING_FEATURES = [
+  'Weekly live cohort sessions with a dedicated coach',
+  'CV and LinkedIn rework tailored to the German market',
+  'Mock interviews with feedback from hiring managers',
+  'Private community of job seekers going through the same search',
+] as const;
+
+const COHORT_DETAILS = [
+  { label: 'Starts', value: 'Sept 15, 2026' },
+  { label: 'Duration', value: '6 weeks' },
+  { label: 'Format', value: 'Live online + community' },
+  { label: 'Seats', value: '20 per cohort' },
+] as const;
+
+// Design category cards (wording verbatim); hrefs mapped to routes that exist.
+const CATEGORIES = [
+  { href: '/category/software', title: 'Software & Engineering', copy: 'Development, cloud, security and infrastructure.' },
+  { href: '/category/data', title: 'Data & AI', copy: 'Analytics, data science, machine learning and BI.' },
+  { href: '/category/product_tech', title: 'Product & Design', copy: 'Product management, UX, research and design.' },
+  { href: '/jobs?search=marketing', title: 'Marketing & Sales', copy: 'Brand, growth, communications and commercial roles.' },
+  { href: '/jobs?search=customer%20success', title: 'Customer Support & HR', copy: 'Customer success, people ops and recruiting roles.' },
+  { href: '/jobs?search=working%20student', title: 'Students & Graduates', copy: 'Internships, working student and graduate roles.' },
+] as const;
+
+const HERO_LOCATIONS = [
+  { value: '', label: 'All Germany' },
+  { value: 'berlin', label: 'Berlin' },
+  { value: 'munich', label: 'Munich' },
+  { value: 'hamburg', label: 'Hamburg' },
+  { value: 'frankfurt', label: 'Frankfurt' },
+  { value: 'remote', label: 'Remote' },
+] as const;
+
+function companyInitials(name: string): string {
+  return name.split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase() || '•';
 }
 
-// Soft, per-category pill colors for career-guide cards.
-function careerPillColors(cat: string): { bg: string; fg: string } {
-  switch (cat) {
-    case 'visas-immigration':
-    case 'finding-jobs':
-      return { bg: 'var(--info-soft)', fg: 'var(--info)' };
-    case 'salaries-careers':
-    case 'students-graduates':
-      return { bg: 'var(--success-soft)', fg: 'var(--success)' };
-    case 'living-in-germany':
-      return { bg: 'var(--warning-soft)', fg: 'var(--warning)' };
-    default:
-      return { bg: 'var(--acid-soft)', fg: 'var(--acid)' };
+function primaryLocation(job: IJob): string {
+  if (Array.isArray(job.AllLocations) && job.AllLocations.length > 0) return job.AllLocations[0];
+  return job.Location || 'Germany';
+}
+
+// "€70k–€90k · Posted 2 days ago" meta line, from real fields only.
+function jobMetaLine(job: IJob): string {
+  const parts: string[] = [];
+  if (job.SalaryMin && job.SalaryMax) {
+    const sym = job.SalaryCurrency === 'USD' ? '$' : '€';
+    const k = (n: number) => n >= 1000 ? `${Math.round(n / 1000)}k` : String(n);
+    parts.push(`${sym}${k(job.SalaryMin)}–${sym}${k(job.SalaryMax)}`);
   }
+  if (job.PostedDate) {
+    const days = Math.max(0, Math.floor((Date.now() - new Date(job.PostedDate).getTime()) / 86400000));
+    parts.push(days === 0 ? 'Posted today' : days === 1 ? 'Posted yesterday' : `Posted ${days} days ago`);
+  }
+  return parts.join(' · ');
 }
 
-function clearbitLogo(domain?: string): string | null {
-  const s = (domain || '').trim();
-  if (!s) return null;
-  let host: string;
-  try { host = new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`).hostname; }
-  catch { host = s.replace(/^https?:\/\//i, '').split('/')[0]; }
-  return host ? `https://logo.clearbit.com/${host}?size=128` : null;
+function jobTags(job: IJob): string[] {
+  return [
+    job.WorkplaceType && job.WorkplaceType !== 'Unspecified' ? job.WorkplaceType : null,
+    job.ExperienceLevel && job.ExperienceLevel !== 'N/A' ? job.ExperienceLevel : null,
+    job.EmploymentType || null,
+  ].filter(Boolean).slice(0, 2) as string[];
 }
 
 interface HomeArticle { title: string; slug: string; category: string; readingMinutes: number; }
@@ -106,271 +124,406 @@ interface HomeProps {
   totalJobCount?: number;
 }
 
-export default function Home({
-  initialJobs = [], initialCompanies = [], companyCount = 0, articles = [], totalJobCount = 0,
-}: HomeProps) {
-  const { isAuthenticated, isPremium, usage } = useAuth();
+export default function Home({ initialJobs = [] }: HomeProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
-
-  const [hydrated, setHydrated] = useState(false);
-  useEffect(() => { setHydrated(true); }, []);
-  const authed = hydrated && isAuthenticated;
-  const premium = hydrated && isPremium;
+  const [heroLocation, setHeroLocation] = useState('');
+  // Cohort demand test: the CTA never leads to a real cohort — the modal
+  // always says "full" and collects waitlist signups.
+  const [cohortModalOpen, setCohortModalOpen] = useState(false);
 
   const jobs = initialJobs.slice(0, 9);
-  const companies = initialCompanies.slice(0, 12);
-
-  const roundedJobs = totalJobCount ? Math.floor(totalJobCount / 100) * 100 : 2600;
-  const jobsPlus = `${roundedJobs.toLocaleString()}+`;
-  const roundedCompanies = companyCount ? Math.floor(companyCount / 50) * 50 : 300;
-  const companiesPlus = `${roundedCompanies.toLocaleString()}+`;
-
-  const jobsHeading = premium ? 'Your matches' : authed ? 'Recommended for you' : 'Latest English-speaking jobs';
 
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
     const q = query.trim();
-    navigate(q ? `/jobs?search=${encodeURIComponent(q)}` : '/jobs');
+    if (q) navigate(`/jobs?search=${encodeURIComponent(q)}`);
+    else if (heroLocation === 'remote') navigate('/jobs?workplace=remote');
+    else if (heroLocation) navigate(`/city/${heroLocation}`);
+    else navigate('/jobs');
   };
 
   return (
-    <div>
-      {/* ── SECTION 1: HERO ──────────────────────────────────────────────── */}
-      <section className="home-hero" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div style={{ ...PAGE, padding: 'clamp(48px, 7vw, 100px) clamp(20px, 5vw, 32px) 44px', textAlign: 'center' }}>
-          <h1 style={{ fontFamily: 'inherit', margin: 0, lineHeight: 1.12, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-            <span style={{ color: 'var(--primary)', fontSize: 'clamp(2.2rem, 5.5vw, 3.5rem)', fontWeight: 800 }}>English Speaking</span>{' '}
-            <span style={{ fontSize: 'clamp(1.8rem, 4.5vw, 2.8rem)', fontWeight: 700 }}>Jobs in Germany</span>
-          </h1>
+    <div style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+      {/* Responsive grids + hover states — inline styles can't express these. */}
+      <style>{`
+        @keyframes lpRiseIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+        .lp-hero { animation: lpRiseIn 0.6s ease both; }
+        .lp-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+        .lp-jobs-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .lp-steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+        .lp-why-grid   { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; }
+        .lp-cats-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .lp-coach-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; }
+        .lp-search-form { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(170px,0.7fr) auto; }
+        @media (max-width: 1023px) {
+          .lp-jobs-grid, .lp-cats-grid { grid-template-columns: repeat(2, 1fr); }
+          .lp-why-grid { grid-template-columns: repeat(2, 1fr); }
+          .lp-coach-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 639px) {
+          .lp-jobs-grid, .lp-steps-grid, .lp-cats-grid, .lp-why-grid { grid-template-columns: 1fr; }
+          .lp-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .lp-stat-cell:nth-child(2n) { border-right: none !important; }
+          .lp-search-form { grid-template-columns: 1fr; }
+          .lp-search-form input, .lp-search-form select { height: 54px !important; border-left: none !important; border-bottom: 1px solid var(--border); }
+          .lp-search-form button { margin: 8px !important; height: 48px !important; }
+        }
+        .lp-card { transition: transform 0.15s ease, border-color 0.15s ease; }
+        @media (hover: hover) and (pointer: fine) {
+          .lp-card:hover { transform: translateY(-3px); border-color: var(--primary) !important; }
+          .lp-primary-btn:hover { background: var(--primary-hover) !important; }
+          .lp-outline-btn:hover { border-color: var(--border-strong) !important; }
+          .lp-cta-btn:hover { opacity: 0.88; }
+        }
+      `}</style>
 
-          <p style={{ fontSize: '1.05rem', fontWeight: 400, color: 'var(--text-secondary)', margin: '16px auto 0', maxWidth: 640 }}>
-            {jobsPlus} verified roles where German is not required
-          </p>
+      <main>
+        {/* ── HERO ─────────────────────────────────────────────────────────── */}
+        <section className="lp-hero" style={{ padding: `clamp(56px, 8vw, 88px) ${SECTION_X} 56px`, textAlign: 'center' }}>
+          <div style={{ maxWidth: 900, margin: '0 auto' }}>
+            <div style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 24, padding: '8px 14px',
+              borderRadius: 999, background: 'var(--primary-soft)', color: 'var(--primary)', fontSize: 13, fontWeight: 800,
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
+              For job seekers who don&rsquo;t speak German
+            </div>
 
-          <form onSubmit={onSearch} className="home-search" style={{ display: 'flex', maxWidth: 560, margin: '26px auto 0' }}>
-            <input
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Job title, skill, or company..."
-              aria-label="Search jobs"
-              style={{
-                flex: 1, minWidth: 0, height: 50, paddingLeft: 16, paddingRight: 12, fontSize: '1rem',
-                fontFamily: 'inherit', color: 'var(--text-primary)', background: 'var(--bg-surface-2)',
-                border: '1.5px solid var(--border)', borderRight: 'none',
-                borderRadius: '14px 0 0 14px', outline: 'none',
-                transition: 'border-color 0.15s, box-shadow 0.15s',
-              }}
-              onFocus={e => { e.currentTarget.style.borderColor = 'var(--acid)'; e.currentTarget.style.boxShadow = '0 0 0 3px var(--acid-soft)'; }}
-              onBlur={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none'; }}
-            />
-            <button
-              type="submit"
-              style={{
-                height: 50, padding: '0 24px', flexShrink: 0,
-                display: 'inline-flex', alignItems: 'center', gap: 8,
-                background: 'var(--acid)', color: '#fff', border: 'none',
-                borderRadius: '0 14px 14px 0', fontFamily: 'inherit', fontSize: '0.95rem', fontWeight: 600, cursor: 'pointer',
-                transition: 'filter 0.15s',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.93)'; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
-            >
-              <Search size={18} /> Find jobs
-            </button>
-          </form>
-
-          {/* Trust badges — separated by a thin top rule aligned to the search bar. */}
-          <div style={{ maxWidth: 560, margin: '20px auto 0', paddingTop: 16, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 12 }}>
-            {['AI-verified', 'Human-reviewed', 'Updated daily'].map(t => (
-              <span key={t} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                fontSize: '0.78rem', color: 'var(--text-secondary)',
-                background: 'var(--bg-surface-2)', borderRadius: 20, padding: '4px 12px',
+            <h1 style={{
+              maxWidth: 880, margin: '0 auto', fontSize: 'clamp(42px, 6.4vw, 76px)',
+              lineHeight: 1.0, letterSpacing: '-0.04em', fontWeight: 800,
+            }}>
+              Find jobs in Germany<br />
+              <span style={{
+                color: 'var(--primary)', fontFamily: "Georgia, 'Times New Roman', serif",
+                fontStyle: 'italic', fontWeight: 500, letterSpacing: '-0.02em',
               }}>
-                <Check size={12} style={{ color: 'var(--acid)' }} /> {t}
+                German not required.
               </span>
-            ))}
-          </div>
-        </div>
-      </section>
+            </h1>
 
-      {/* ── SECTION 2: DISCOVERY CHIPS ───────────────────────────────────── */}
-      <div style={{ ...PAGE, paddingTop: 24, paddingBottom: 20 }}>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Popular roles:</span>
-          {POPULAR_ROLES.map(([label, href]) => (
-            <Link key={label} to={href} className="discovery-chip" style={chipStyle}>{label}</Link>
-          ))}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Top cities:</span>
-          {TOP_CITIES.map(([slug, label]) => (
-            <Link key={slug} to={`/city/${slug}`} className="discovery-chip" style={chipStyle}>{label}</Link>
-          ))}
-        </div>
-      </div>
+            <p style={{ maxWidth: 640, margin: '22px auto 0', color: 'var(--text-secondary)', fontSize: 18 }}>
+              We screen every listing so you only see roles that don&rsquo;t demand fluent German —{' '}
+              <strong style={{ color: 'var(--text-primary)', fontWeight: 700 }}>apply with confidence, skip the guesswork.</strong>
+            </p>
 
-      {/* ── SECTION 3: LATEST JOBS (server-rendered, crawlable) ──────────── */}
-      <div style={{ ...PAGE, paddingTop: 8, paddingBottom: SECTION_PAD }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-          <SectionHeading>{jobsHeading}</SectionHeading>
-          {authed && !premium && usage && (
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              {usage.jdViewsUsed}/{usage.jdViewsLimit ?? 20} JD views this week
-            </span>
-          )}
-        </div>
-
-        {/* Smart Match — a gentle inline notification, not a banner (Issue 9). */}
-        {premium && (
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--acid-soft)', borderRadius: 10, padding: '12px 16px', marginBottom: 20, fontSize: '0.82rem', color: 'var(--text-primary)' }}>
-            <Sparkles size={14} style={{ color: 'var(--acid)', flexShrink: 0 }} />
-            Smart Match scored {jobsPlus} jobs to your profile
-            <Link to="/today-matches" style={{ ...viewAllLink, fontSize: '0.82rem', marginLeft: 6 }} className="home-viewall">
-              View <ArrowRight size={12} className="home-viewall__arrow" />
-            </Link>
-          </div>
-        )}
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
-          {jobs.map(job => <HomeSeoCard key={job._id} job={job} />)}
-        </div>
-
-        <div style={{ marginTop: 24, textAlign: 'center' }}>
-          <Link to="/jobs" className="home-viewall" style={viewAllLink}>
-            View all {jobsPlus} jobs <ArrowRight size={13} className="home-viewall__arrow" />
-          </Link>
-        </div>
-      </div>
-
-      {/* ── SECTION 4: WHAT MAKES US DIFFERENT (full-width tinted band) ──── */}
-      <section style={{ background: 'var(--bg-surface-2)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ ...PAGE, paddingTop: SECTION_PAD, paddingBottom: SECTION_PAD }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
-            {DIFFERENTIATORS.map(({ Icon, title, desc }) => (
-              <div key={title} className="home-elev" style={{ position: 'relative', background: 'var(--bg-surface)', borderRadius: 10, padding: '24px 24px 24px 20px' }}>
-                <span style={{ position: 'absolute', left: 0, top: 24, width: 3, height: 40, background: 'var(--acid)', borderRadius: '0 3px 3px 0' }} />
-                <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--acid-soft)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon size={22} style={{ color: 'var(--acid)' }} />
-                </span>
-                <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-primary)', margin: '14px 0 6px' }}>{title}</h3>
-                <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0 }}>{desc}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── SECTION 5: COMPANIES HIRING (logo/avatar grid) ──────────────── */}
-      {companies.length > 0 && (
-        <div style={{ ...PAGE, paddingTop: SECTION_PAD, paddingBottom: SECTION_PAD }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-            <SectionHeading>Companies hiring</SectionHeading>
-            <Link to="/directory" className="home-viewall" style={viewAllLink}>
-              See all {companiesPlus} companies <ArrowRight size={13} className="home-viewall__arrow" />
-            </Link>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 12 }}>
-            {companies.map((c, i) => {
-              const logo = clearbitLogo(c.domain);
-              return (
-                <Link
-                  key={`${c.companyName}-${i}`}
-                  to="/directory"
-                  aria-label={c.companyName}
-                  className="home-company"
-                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '10px 6px', textDecoration: 'none' }}
+            <div style={{ maxWidth: 900, margin: '36px auto 0' }}>
+              <form
+                onSubmit={onSearch}
+                className="lp-search-form"
+                style={{
+                  minHeight: 68, alignItems: 'center', background: 'var(--bg-surface)',
+                  border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden',
+                  boxShadow: '0 1px 2px rgba(18,20,26,0.04)',
+                }}
+              >
+                <input
+                  type="search"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Job title, skill or company"
+                  aria-label="Search jobs"
+                  style={{
+                    height: 66, border: 0, background: 'transparent', outline: 'none', padding: '0 22px',
+                    fontSize: 15, color: 'var(--text-primary)', fontFamily: 'inherit', minWidth: 0,
+                  }}
+                />
+                <select
+                  value={heroLocation}
+                  onChange={e => setHeroLocation(e.target.value)}
+                  aria-label="Location"
+                  style={{
+                    height: 66, border: 0, borderLeft: '1px solid var(--border)', background: 'transparent',
+                    outline: 'none', padding: '0 18px', color: 'var(--text-secondary)', fontSize: 15,
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}
                 >
-                  <span className="home-company__avatar" style={{
-                    width: 56, height: 56, borderRadius: '50%',
-                    background: 'var(--bg-surface-2)', border: '1.5px solid var(--border)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-                  }}>
-                    {logo ? (
-                      <img
-                        src={logo}
-                        alt={c.companyName}
-                        style={{ width: 36, height: 36, objectFit: 'contain' }}
-                        onError={e => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    ) : (
-                      <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--primary)' }}>
-                        {c.companyName.charAt(0).toUpperCase()}
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
-                    {c.companyName}
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                  {HERO_LOCATIONS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
+                </select>
+                <button
+                  type="submit"
+                  className="lp-primary-btn"
+                  style={{
+                    height: 52, marginRight: 8, padding: '0 26px', border: 0, borderRadius: 11,
+                    background: 'var(--primary)', color: '#fff', fontWeight: 800, fontSize: 15,
+                    cursor: 'pointer', transition: 'background 0.15s ease', fontFamily: 'inherit',
+                  }}
+                >
+                  Search jobs
+                </button>
+              </form>
+              <p style={{ marginTop: 12, fontSize: 13, color: 'var(--text-muted)' }}>
+                Popular: Software Engineer · Product Manager · Data Analyst
+              </p>
+            </div>
 
-      {/* ── SECTION 6: CAREER GUIDE PREVIEW ─────────────────────────────── */}
-      {articles.length > 0 && (
-        <section style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)' }}>
-          <div style={{ ...PAGE, paddingTop: SECTION_PAD, paddingBottom: SECTION_PAD }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-              <SectionHeading>Career Guide</SectionHeading>
-              <Link to="/career-guide" className="home-viewall" style={viewAllLink}>
-                View all articles <ArrowRight size={13} className="home-viewall__arrow" />
+            <div className="lp-stats-grid" style={{ marginTop: 48, borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+              {STATS.map((s, i) => (
+                <div key={s.label} className="lp-stat-cell" style={{
+                  padding: '26px 16px', textAlign: 'center',
+                  borderRight: i === STATS.length - 1 ? 'none' : '1px solid var(--border)',
+                }}>
+                  <strong style={{ display: 'block', fontSize: 25, letterSpacing: '-0.03em', fontWeight: 800 }}>{s.n}</strong>
+                  <span style={{ marginTop: 5, display: 'block', color: 'var(--text-secondary)', fontSize: 13 }}>{s.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── TRUST LOGOS ───────────────────────────────────────────────────── */}
+        <section style={{ padding: `40px ${SECTION_X}` }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <p style={{
+              textAlign: 'center', fontSize: 12, fontWeight: 750, letterSpacing: '0.1em',
+              textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 22,
+            }}>
+              Companies where we&rsquo;ve identified non-German-mandatory roles
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+              {TRUST_LOGOS.map(t => (
+                <div key={t} style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-muted)' }}>{t}</div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── TRENDING ROLES (real jobs, crawlable links) ───────────────────── */}
+        <section style={{ padding: `68px ${SECTION_X}`, background: 'var(--bg-surface-2)' }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 30, flexWrap: 'wrap' }}>
+              <div>
+                <span style={eyebrowStyle}>Fresh today</span>
+                <h2 style={{ marginTop: 8, fontSize: 'clamp(28px, 3.4vw, 38px)', letterSpacing: '-0.04em', fontWeight: 800 }}>
+                  Trending roles right now
+                </h2>
+              </div>
+              <Link to="/jobs" className="lp-outline-btn" style={{
+                minHeight: 44, padding: '0 18px', display: 'inline-flex', alignItems: 'center',
+                borderRadius: 10, border: '1px solid var(--border-strong)', fontWeight: 700, fontSize: 14,
+                background: 'var(--bg-surface)', color: 'var(--text-primary)', textDecoration: 'none',
+              }}>
+                View all jobs
               </Link>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
-              {articles.map(a => {
-                const pill = careerPillColors(a.category);
+
+            <div className="lp-jobs-grid">
+              {jobs.map(job => {
+                const tags = jobTags(job);
+                const meta = jobMetaLine(job);
                 return (
                   <Link
-                    key={a.slug}
-                    to={`/career-guide/${a.category}/${a.slug}`}
-                    className="home-elev"
-                    style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-surface-2)', borderRadius: 12, padding: 18, textDecoration: 'none', overflow: 'hidden' }}
+                    key={job._id}
+                    to={`/jobs/${job._id}`}
+                    className="lp-card"
+                    style={{
+                      display: 'block', padding: 22, background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)', borderRadius: 15, textDecoration: 'none', color: 'inherit',
+                    }}
                   >
-                    <span style={{
-                      alignSelf: 'flex-start', fontSize: '0.65rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase',
-                      color: pill.fg, background: pill.bg, padding: '3px 10px', borderRadius: 4,
-                    }}>
-                      {careerCategoryLabel(a.category)}
-                    </span>
-                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.4 }}>{a.title}</span>
-                    <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 'auto' }}>{a.readingMinutes} min read</span>
-                    <span style={{ ...viewAllLink, fontSize: '0.82rem' }}>Read <ArrowRight size={12} /></span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 42, height: 42, borderRadius: 10, background: 'var(--ink)', color: 'var(--paper)',
+                        display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0,
+                      }}>
+                        {companyInitials(job.Company)}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <h3 style={{
+                          fontSize: 15, fontWeight: 750, letterSpacing: '-0.01em', margin: 0,
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}>
+                          {job.JobTitle}
+                        </h3>
+                        <p style={{ margin: '2px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
+                          {job.Company} · {primaryLocation(job)}
+                        </p>
+                      </div>
+                    </div>
+                    {tags.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 16 }}>
+                        {tags.map(tag => (
+                          <span key={tag} style={{
+                            padding: '5px 10px', borderRadius: 999, background: 'var(--bg-surface-2)',
+                            color: 'var(--text-secondary)', fontSize: 12, fontWeight: 650,
+                          }}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {meta && <p style={{ margin: '14px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{meta}</p>}
                   </Link>
                 );
               })}
             </div>
           </div>
         </section>
-      )}
 
-      {/* ── SECTION 7: CITY & CATEGORY LINK GRID (internal-linking hub) ──── */}
-      <section style={{ background: 'var(--bg-base)', borderTop: '1px solid var(--border)' }}>
-        <div style={{ ...PAGE, paddingTop: SECTION_PAD, paddingBottom: SECTION_PAD }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '28px 40px' }}>
-            <div>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' }}>Browse by City</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '0 16px' }}>
-                {GRID_CITIES.map(([slug, label]) => (
-                  <Link key={slug} to={`/city/${slug}`} className="home-grid-link" style={gridLinkStyle}>{label}</Link>
-                ))}
-              </div>
+        {/* ── HOW IT WORKS ──────────────────────────────────────────────────── */}
+        <section style={{ padding: `68px ${SECTION_X}` }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 44px' }}>
+              <span style={eyebrowStyle}>How it works</span>
+              <h2 style={{ marginTop: 8, fontSize: 'clamp(30px, 3.6vw, 42px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
+                Three steps to your next role
+              </h2>
             </div>
-            <div>
-              <h2 style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' }}>Browse by Category</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '0 16px' }}>
-                {CATEGORY_ORDER.map(cat => (
-                  <Link key={cat} to={`/category/${cat}`} className="home-grid-link" style={gridLinkStyle}>{CATEGORY_LABELS[cat]}</Link>
-                ))}
-              </div>
+            <div className="lp-steps-grid">
+              {STEPS.map(st => (
+                <div key={st.n} style={{ padding: '30px 26px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10, background: 'var(--primary-soft)', color: 'var(--primary)',
+                    display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 15, marginBottom: 18,
+                  }}>
+                    {st.n}
+                  </div>
+                  <h3 style={{ fontSize: 17, fontWeight: 750, letterSpacing: '-0.02em', margin: 0 }}>{st.title}</h3>
+                  <p style={{ marginTop: 8, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.55 }}>{st.copy}</p>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        {/* ── WHY US (inverted ink band) ────────────────────────────────────── */}
+        <section style={{ padding: `60px ${SECTION_X}`, background: 'var(--ink)', color: 'var(--paper)' }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 40px' }}>
+              <span style={eyebrowStyle}>Why us</span>
+              <h2 style={{ marginTop: 8, fontSize: 'clamp(28px, 3.4vw, 38px)', letterSpacing: '-0.04em', fontWeight: 800 }}>
+                Built differently from a general job board
+              </h2>
+            </div>
+            <div className="lp-why-grid" style={{ borderTop: '1px solid color-mix(in srgb, var(--paper) 16%, transparent)' }}>
+              {WHY_US.map((w, i) => (
+                <div key={w.title} style={{
+                  padding: '26px 20px 0',
+                  borderRight: i === WHY_US.length - 1 ? 'none' : '1px solid color-mix(in srgb, var(--paper) 16%, transparent)',
+                }}>
+                  <h3 style={{ fontSize: 16, fontWeight: 750, letterSpacing: '-0.01em', margin: 0 }}>{w.title}</h3>
+                  <p style={{ marginTop: 8, color: 'color-mix(in srgb, var(--paper) 64%, transparent)', fontSize: 13, lineHeight: 1.55 }}>{w.copy}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CAREER COACHING ───────────────────────────────────────────────── */}
+        <section style={{ padding: `68px ${SECTION_X}`, background: 'var(--primary-soft)' }}>
+          <div className="lp-coach-grid" style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 18, padding: '7px 13px',
+                borderRadius: 999, background: 'var(--bg-surface)', color: 'var(--primary)', fontSize: 12, fontWeight: 800,
+              }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
+                New · Career coaching
+              </div>
+              <h2 style={{ fontSize: 'clamp(28px, 3.6vw, 40px)', letterSpacing: '-0.04em', lineHeight: 1.08, fontWeight: 800, margin: 0 }}>
+                Get hired faster with cohort-based coaching
+              </h2>
+              <p style={{ marginTop: 14, color: 'var(--text-secondary)', fontSize: 16, maxWidth: 480 }}>
+                Join a small group of international job seekers and work through your CV, interviews and job search
+                strategy for the German market — live, week by week.
+              </p>
+
+              <div style={{ display: 'grid', gap: 14, marginTop: 26 }}>
+                {COACHING_FEATURES.map(f => (
+                  <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                    <span style={{ marginTop: 6, width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 15, color: 'var(--text-primary)' }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+
+              <button type="button" onClick={() => setCohortModalOpen(true)} className="lp-primary-btn" style={{
+                marginTop: 28, minHeight: 48, padding: '0 24px', display: 'inline-flex', alignItems: 'center',
+                justifyContent: 'center', borderRadius: 11, background: 'var(--primary)', color: '#fff',
+                fontWeight: 800, fontSize: 15, border: 'none', cursor: 'pointer',
+                fontFamily: 'inherit', transition: 'background 0.15s ease',
+              }}>
+                Apply for the next cohort
+              </button>
+            </div>
+
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 18, padding: 30 }}>
+              <p style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', margin: 0 }}>
+                Next cohort
+              </p>
+              {COHORT_DETAILS.map(d => (
+                <div key={d.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>{d.label}</span>
+                  <span style={{ fontWeight: 700, fontSize: 14 }}>{d.value}</span>
+                </div>
+              ))}
+              <p style={{ marginTop: 16, fontSize: 13, color: 'var(--text-muted)' }}>
+                Limited to 20 seats per cohort to keep coaching hands-on.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {/* ── BROWSE BY CATEGORY ────────────────────────────────────────────── */}
+        <section style={{ padding: `68px ${SECTION_X}` }}>
+          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', maxWidth: 700, margin: '0 auto 30px' }}>
+              <span style={eyebrowStyle}>Browse by category</span>
+              <h2 style={{ marginTop: 8, fontSize: 'clamp(30px, 3.6vw, 42px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
+                Explore opportunities by field
+              </h2>
+              <p style={{ marginTop: 12, color: 'var(--text-secondary)' }}>
+                Every role listed here does not require German fluency.
+              </p>
+            </div>
+
+            <div className="lp-cats-grid">
+              {CATEGORIES.map(c => (
+                <Link
+                  key={c.title}
+                  to={c.href}
+                  className="lp-card"
+                  style={{
+                    minHeight: 122, padding: 20, background: 'var(--bg-surface)', border: '1px solid var(--border)',
+                    borderRadius: 15, display: 'block', textDecoration: 'none', color: 'inherit',
+                  }}
+                >
+                  <h3 style={{ fontSize: 16, fontWeight: 750, letterSpacing: '-0.02em', margin: 0 }}>{c.title}</h3>
+                  <p style={{ marginTop: 7, color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.5 }}>{c.copy}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ── CTA BAND (inverted ink card) ──────────────────────────────────── */}
+        <section style={{ padding: `24px ${SECTION_X} 80px` }}>
+          <div style={{
+            maxWidth: 1120, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            gap: 28, flexWrap: 'wrap', padding: 'clamp(26px, 4vw, 38px) clamp(24px, 4vw, 40px)', borderRadius: 22,
+            background: 'var(--ink)', color: 'var(--paper)',
+          }}>
+            <div>
+              <h2 style={{ fontSize: 'clamp(26px, 3.6vw, 38px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800, margin: 0 }}>
+                Get relevant jobs in your inbox.
+              </h2>
+              <p style={{ marginTop: 8, color: 'color-mix(in srgb, var(--paper) 74%, transparent)', maxWidth: 460 }}>
+                Curated openings and practical Germany relocation tips, once a week.
+              </p>
+            </div>
+            <Link to="/signup" className="lp-cta-btn" style={{
+              minWidth: 190, minHeight: 48, padding: '0 22px', display: 'inline-flex', alignItems: 'center',
+              justifyContent: 'center', borderRadius: 11, background: 'var(--paper)', color: 'var(--ink)',
+              fontWeight: 800, fontSize: 15, textDecoration: 'none',
+            }}>
+              Get weekly alerts
+            </Link>
+          </div>
+        </section>
+      </main>
+
+      {cohortModalOpen && <CohortWaitlistModal onClose={() => setCohortModalOpen(false)} />}
     </div>
   );
 }

@@ -85,7 +85,12 @@ export function PremiumFeatureBullets() {
 }
 
 // ─── Reusable: promo code redemption form ────────────────────────────────────
-export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () => void; source?: string }) {
+export function PromoCodeForm({ onSuccess, source = 'modal', variant = 'default' }: {
+  onSuccess?: () => void;
+  source?: string;
+  /** 'premium' = navy/gold membership styling (Profile subscription card). */
+  variant?: 'default' | 'premium';
+}) {
   const { refreshUsage } = useAuth();
   const [code, setCode] = useState('');
   const [state, setState] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
@@ -129,8 +134,13 @@ export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () 
             flex: 1, minWidth: 0, height: 40, padding: '0 12px',
             fontFamily: 'inherit', fontSize: '0.86rem', letterSpacing: '0.04em',
             textTransform: 'uppercase',
-            background: 'var(--bg-surface)', color: 'var(--text-primary)',
-            border: `1.25px solid ${state === 'error' ? 'var(--danger)' : 'var(--border)'}`,
+            ...(variant === 'premium' ? {
+              background: 'rgba(255,255,255,0.06)', color: '#fff',
+              border: `1.25px solid ${state === 'error' ? 'var(--danger)' : 'rgba(212, 169, 74, 0.4)'}`,
+            } : {
+              background: 'var(--bg-surface)', color: 'var(--text-primary)',
+              border: `1.25px solid ${state === 'error' ? 'var(--danger)' : 'var(--border)'}`,
+            }),
             borderRadius: 10, outline: 'none',
           }}
         />
@@ -140,8 +150,11 @@ export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () 
           disabled={state === 'submitting' || state === 'success' || !code.trim()}
           style={{
             height: 40, padding: '0 18px', flexShrink: 0,
-            background: 'var(--acid)', color: '#fff', border: 'none', borderRadius: 10,
-            fontFamily: 'inherit', fontSize: '0.86rem', fontWeight: 700,
+            ...(variant === 'premium'
+              ? { background: 'linear-gradient(90deg, #d4a94a, #e6c069)', color: '#0f1620', fontWeight: 800 }
+              : { background: 'var(--acid)', color: '#fff', fontWeight: 700 }),
+            border: 'none', borderRadius: 10,
+            fontFamily: 'inherit', fontSize: '0.86rem',
             cursor: state === 'submitting' || !code.trim() ? 'not-allowed' : 'pointer',
             opacity: state === 'submitting' || !code.trim() ? 0.6 : 1,
           }}
@@ -152,7 +165,7 @@ export function PromoCodeForm({ onSuccess, source = 'modal' }: { onSuccess?: () 
       {message && (
         <p style={{
           marginTop: 8, fontSize: '0.8rem', fontWeight: 600,
-          color: state === 'success' ? 'var(--acid)' : 'var(--danger)',
+          color: state === 'success' ? (variant === 'premium' ? '#e6c069' : 'var(--acid)') : 'var(--danger)',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
           {state === 'success' && <Check size={14} />}

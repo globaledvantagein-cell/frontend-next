@@ -12,11 +12,7 @@
 
 import posthog from 'posthog-js';
 
-/**
- * Bump this when the cookie policy changes to re-prompt everyone once.
- * KEEP IN SYNC with the mirrored constants in src/instrumentation-client.ts
- * (that file cannot import this one — separate Turbopack entry point).
- */
+/** Bump this when the cookie policy changes to re-prompt everyone once. */
 export const CONSENT_VERSION = 1;
 
 const STORAGE_KEY = 'ejg_cookie_consent';

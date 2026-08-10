@@ -202,7 +202,7 @@ export default function PremiumCheckout() {
           {PLAN_PRICE}
           <span style={{ fontSize: '1rem', fontWeight: 600 }}>/mo</span>
         </span>
-        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.15rem', fontWeight: 700, color: '#34D399', letterSpacing: '-0.01em', lineHeight: 1 }}>Free</span>
+        <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: '2.15rem', fontWeight: 700, color: 'var(--acid)', letterSpacing: '-0.01em', lineHeight: 1 }}>Free</span>
       </div>
       <p style={{ margin: '6px 0 0', fontSize: '0.78rem', color: gold, letterSpacing: '0.02em' }}>First 3 months free · invite only · no credit card</p>
 
