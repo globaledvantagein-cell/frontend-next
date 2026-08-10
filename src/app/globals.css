@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+/* ── Scrollbar (theme-aware) ──────────────────────── */
+/* Matches the site palette in both light and dark mode
+   instead of the default browser gray. */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-base);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Firefox */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-base);
+}
+
 /* ── Reset ────────────────────────────────────────── */
 *,
 *::before,
@@ -103,20 +129,7 @@ body::before {
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Scrollbar ────────────────────────────────────── */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--paper2);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 3px;
-}
-
+/* ── Scrollbar: narrow variant for inner panels ───── */
 .thin-scroll::-webkit-scrollbar {
   width: 3px;
 }

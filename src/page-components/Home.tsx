@@ -144,7 +144,7 @@ export default function Home({ initialJobs = [] }: HomeProps) {
   };
 
   return (
-    <div style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', lineHeight: 1.5 }}>
+    <div style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', lineHeight: 1.5, overflowX: 'hidden' }}>
       {/* Responsive grids + hover states — inline styles can't express these. */}
       <style>{`
         @keyframes lpRiseIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
@@ -156,6 +156,10 @@ export default function Home({ initialJobs = [] }: HomeProps) {
         .lp-cats-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
         .lp-coach-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; }
         .lp-search-form { display: grid; grid-template-columns: minmax(0,1.6fr) minmax(170px,0.7fr) auto; }
+        /* Grid items default to min-width:auto, so a nowrap job title would
+           force its column wider than 1fr and overflow the viewport. */
+        .lp-jobs-grid > *, .lp-steps-grid > *, .lp-cats-grid > *,
+        .lp-why-grid > *, .lp-stats-grid > *, .lp-coach-grid > * { min-width: 0; }
         @media (max-width: 1023px) {
           .lp-jobs-grid, .lp-cats-grid { grid-template-columns: repeat(2, 1fr); }
           .lp-why-grid { grid-template-columns: repeat(2, 1fr); }
