@@ -4,6 +4,7 @@ import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useNavigate } from '@/compat/router';
 import type { IJob, ICompany } from '../types';
 import CohortWaitlistModal from '../components/CohortWaitlistModal';
+import CompanyLogo from '../components/CompanyLogo';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Landing page — 1:1 port of the "Job Portal Landing" Claude Design file.
@@ -302,16 +303,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
                       color: 'var(--text-muted)', textDecoration: 'none',
                     }}
                   >
-                    {c.logo && (
-                      <img
-                        src={c.logo}
-                        alt=""
-                        width={24}
-                        height={24}
-                        style={{ objectFit: 'contain', borderRadius: 4 }}
-                        onError={e => { e.currentTarget.style.display = 'none'; }}
-                      />
-                    )}
+                    <CompanyLogo companyName={c.companyName} domain={c.domain} />
                     {c.companyName}
                   </Link>
                 ))}
