@@ -34,8 +34,6 @@ const STATS = [
   { n: 'Daily', label: 'New job updates' },
 ] as const;
 
-const TRUST_LOGOS = ['NORDIC AI', 'HELIOS TECH', 'BLAUWERK', 'FINORA', 'GREENFIELD', 'VECTRA'] as const;
-
 const STEPS = [
   { n: '1', title: 'Search & filter', copy: 'Browse roles pre-screened for English-only requirements, by city, remote or field.' },
   { n: '2', title: 'Apply direct', copy: 'Apply straight to the employer or recruiter — no extra accounts required.' },
@@ -124,7 +122,7 @@ interface HomeProps {
   totalJobCount?: number;
 }
 
-export default function Home({ initialJobs = [] }: HomeProps) {
+export default function Home({ initialJobs = [], initialCompanies = [] }: HomeProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [heroLocation, setHeroLocation] = useState('');
@@ -133,6 +131,7 @@ export default function Home({ initialJobs = [] }: HomeProps) {
   const [cohortModalOpen, setCohortModalOpen] = useState(false);
 
   const jobs = initialJobs.slice(0, 9);
+  const trustCompanies = initialCompanies.slice(0, 12);
 
   const onSearch = (e: FormEvent) => {
     e.preventDefault();
@@ -179,6 +178,7 @@ export default function Home({ initialJobs = [] }: HomeProps) {
           .lp-primary-btn:hover { background: var(--primary-hover) !important; }
           .lp-outline-btn:hover { border-color: var(--border-strong) !important; }
           .lp-cta-btn:hover { opacity: 0.88; }
+          .lp-popular-link:hover { text-decoration: underline; }
         }
       `}</style>
 
@@ -258,7 +258,12 @@ export default function Home({ initialJobs = [] }: HomeProps) {
                 </button>
               </form>
               <p style={{ marginTop: 12, fontSize: 13, color: 'var(--text-muted)' }}>
-                Popular: Software Engineer · Product Manager · Data Analyst
+                Popular:{' '}
+                <Link to="/jobs?search=Software+Engineer" className="lp-popular-link" style={{ color: 'inherit' }}>Software Engineer</Link>
+                {' · '}
+                <Link to="/jobs?search=Product+Manager" className="lp-popular-link" style={{ color: 'inherit' }}>Product Manager</Link>
+                {' · '}
+                <Link to="/jobs?search=Data+Analyst" className="lp-popular-link" style={{ color: 'inherit' }}>Data Analyst</Link>
               </p>
             </div>
 
@@ -276,22 +281,44 @@ export default function Home({ initialJobs = [] }: HomeProps) {
           </div>
         </section>
 
-        {/* ── TRUST LOGOS ───────────────────────────────────────────────────── */}
-        <section style={{ padding: `40px ${SECTION_X}` }}>
-          <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-            <p style={{
-              textAlign: 'center', fontSize: 12, fontWeight: 750, letterSpacing: '0.1em',
-              textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 22,
-            }}>
-              Companies where we&rsquo;ve identified non-German-mandatory roles
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-              {TRUST_LOGOS.map(t => (
-                <div key={t} style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-muted)' }}>{t}</div>
-              ))}
+        {/* ── TRUST LOGOS (real companies from the directory) ───────────────── */}
+        {trustCompanies.length > 0 && (
+          <section style={{ padding: `40px ${SECTION_X}` }}>
+            <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+              <p style={{
+                textAlign: 'center', fontSize: 12, fontWeight: 750, letterSpacing: '0.1em',
+                textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 22,
+              }}>
+                Companies hiring in English
+              </p>
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px 36px', flexWrap: 'wrap' }}>
+                {trustCompanies.map((c, i) => (
+                  <Link
+                    key={`${c.companyName}-${i}`}
+                    to="/directory"
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em',
+                      color: 'var(--text-muted)', textDecoration: 'none',
+                    }}
+                  >
+                    {c.logo && (
+                      <img
+                        src={c.logo}
+                        alt=""
+                        width={24}
+                        height={24}
+                        style={{ objectFit: 'contain', borderRadius: 4 }}
+                        onError={e => { e.currentTarget.style.display = 'none'; }}
+                      />
+                    )}
+                    {c.companyName}
+                  </Link>
+                ))}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {/* ── TRENDING ROLES (real jobs, crawlable links) ───────────────────── */}
         <section style={{ padding: `68px ${SECTION_X}`, background: 'var(--bg-surface-2)' }}>
