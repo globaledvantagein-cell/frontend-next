@@ -7,12 +7,7 @@ import { companiesPage } from '../theme/companies-content';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { apiGet, apiPatch } from '../utils/jobApi';
 import { useAuth } from '../context/AuthContext';
-
-const AVATAR_COLORS = [
-  '#4A90D9', '#50B88E', '#E8915A', '#9B6FD1',
-  '#D4697A', '#5AADBA', '#7B9E5F', '#C4883D',
-  '#6C7FD1', '#D15F8A',
-];
+import CompanyLogo from '../components/CompanyLogo';
 
 interface Company {
   companyName: string;
@@ -25,12 +20,6 @@ interface Company {
   description?: string | null;
   website?: string | null;
   logo?: string | null;
-}
-
-function getAvatarColor(name: string) {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
 // Raw ATS locations arrive messy: "Munich Hybrid (navvis Gmbh)", "Munich Onsite
@@ -109,10 +98,7 @@ const CompanyCard = memo(function CompanyCard({
       title={isScraped ? 'Browse jobs at this company' : 'Visit careers page'}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: 8, background: getAvatarColor(company.companyName || ''),
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.9rem', color: '#fff', userSelect: 'none',
-        }}>{(company.companyName || '').charAt(0).toUpperCase()}</div>
+        <CompanyLogo companyName={company.companyName} domain={company.domain || company.careersUrl || undefined} size={40} />
         <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>{company.companyName}</div>
         {isAdmin && (
           <button

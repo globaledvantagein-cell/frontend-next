@@ -78,18 +78,32 @@ export default function Footer() {
       <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {/* Row 1 — wordmark + primary links */}
-        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px 20px' }}>
           <Link
             to="/"
-            style={{
-              fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.05rem', fontWeight: 700,
-              color: 'var(--text-primary)', textDecoration: 'none', letterSpacing: '-0.01em',
-            }}
+            style={{ display: 'flex', alignItems: 'center', gap: 9, textDecoration: 'none' }}
           >
-            English <em style={{ fontStyle: 'italic', color: '#6C9CFF' }}>Jobs</em>
-            <span style={{ fontFamily: 'inherit', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', marginLeft: 7, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-              in Germany
-            </span>
+            <img
+              src="/logo.jpeg"
+              alt=""
+              style={{ height: 28, width: 'auto', display: 'block', flexShrink: 0 }}
+              loading="lazy"
+              decoding="async"
+            />
+            <div style={{ lineHeight: 1 }}>
+              <span style={{
+                fontFamily: "'Playfair Display', Georgia, serif", fontSize: '1.05rem', fontWeight: 700,
+                color: 'var(--text-primary)', letterSpacing: '-0.01em', display: 'block',
+              }}>
+                English <em style={{ fontStyle: 'italic', color: '#6C9CFF' }}>Jobs</em>
+              </span>
+              <span style={{
+                fontSize: '0.55rem', fontWeight: 600, color: 'var(--text-muted)',
+                letterSpacing: '0.12em', textTransform: 'uppercase', marginTop: 2, display: 'block',
+              }}>
+                in Germany
+              </span>
+            </div>
           </Link>
           <nav aria-label="Footer" style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
             {PRIMARY_LINKS.map(([href, label]) => (

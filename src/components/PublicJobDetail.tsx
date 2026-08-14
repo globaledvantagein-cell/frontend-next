@@ -5,6 +5,7 @@ import { Link } from '@/compat/router';
 import { ExternalLink, MapPin, Share2, Check } from 'lucide-react';
 import type { IJob } from '../types';
 import { track } from '../utils/analytics';
+import CompanyLogo from './CompanyLogo';
 import FormattedDescription from './FormattedDescription';
 import SaveJobButton from './SaveJobButton';
 import { formatPostedDate } from '../utils/date';
@@ -179,6 +180,7 @@ export default function PublicJobDetail({ job, onApplyTracked, onAuthRequired, o
         </Link>
 
         <div className="flex items-center flex-wrap gap-2" style={{ marginBottom: 10 }}>
+          <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={36} />
           <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>{job.Company}</span>
           <span style={{ color: 'var(--text-muted)' }}>·</span>
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>

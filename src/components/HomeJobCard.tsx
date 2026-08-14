@@ -1,27 +1,17 @@
 'use client';
 
-import { useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useNavigate } from '@/compat/router';
 import { ArrowUpRight } from 'lucide-react';
 import type { IJob } from '../types';
 import { Badge } from './ui';
+import CompanyLogo from '../components/CompanyLogo';
 import { relativeDate } from '../utils/date';
 import { compactSalary, parseAllLocations, getPrimaryLocation } from '../utils/job';
 import { CATEGORY_LABELS, type Category } from '../utils/categorize';
 
 interface HomeJobCardProps {
   job: IJob;
-}
-
-function getInitialColors(company: string) {
-  const initial = (company.trim().charCodeAt(0) || 65) - 65;
-  const hue = ((initial % 26) * 17 + 210) % 360;
-
-  return {
-    background: `hsla(${hue}, 78%, 55%, 0.14)`,
-    border: `hsla(${hue}, 68%, 42%, 0.24)`,
-    color: `hsl(${hue}, 68%, 40%)`,
-  };
 }
 
 export default function HomeJobCard({ job }: HomeJobCardProps) {
@@ -31,7 +21,6 @@ export default function HomeJobCard({ job }: HomeJobCardProps) {
   const salary = compactSalary(job);
   const allLocations = parseAllLocations(job);
   const location = getPrimaryLocation(job, allLocations) || 'Germany';
-  const initialColors = useMemo(() => getInitialColors(job.Company || 'J'), [job.Company]);
 
   const categoryLabel = job.Category ? CATEGORY_LABELS[job.Category as Category] : null;
 
@@ -91,25 +80,7 @@ export default function HomeJobCard({ job }: HomeJobCardProps) {
         boxShadow: hovered ? '0 8px 24px rgba(0, 0, 0, 0.08)' : 'none',
       }}
     >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: '999px',
-          background: initialColors.background,
-          border: `1px solid ${initialColors.border}`,
-          color: initialColors.color,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          fontFamily: "'Playfair Display', serif",
-          fontSize: '1rem',
-          fontWeight: 700,
-        }}
-      >
-        {(job.Company || 'J').charAt(0).toUpperCase()}
-      </div>
+      <CompanyLogo companyName={job.Company || 'J'} domain={job.companyDomain ?? undefined} size={32} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>

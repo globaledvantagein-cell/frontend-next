@@ -7,6 +7,7 @@
 import { forwardRef, memo } from 'react';
 import type { IJob } from '../../types';
 import { Badge } from '../ui';
+import CompanyLogo from '../CompanyLogo';
 import SaveJobButton from '../SaveJobButton';
 import { compactSalary, getDisplayLocation, normalizeWorkplace } from '../../utils/job';
 import { relativeDate } from '../../utils/date';
@@ -43,8 +44,11 @@ export const DesktopJobCard = memo(
             background: selected ? 'var(--acid-soft)' : 'transparent',
             borderRadius: 8, padding: '12px 14px',
             textAlign: 'left', cursor: 'pointer', width: '100%',
+            display: 'flex', alignItems: 'flex-start', gap: 10,
           }}
         >
+          <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={28} />
+          <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word', paddingRight: 22 }}>
             {job.JobTitle}
           </p>
@@ -73,6 +77,7 @@ export const DesktopJobCard = memo(
               )}
             </div>
           )}
+          </div>
         </button>
         <SaveJobButton jobId={job._id} size={14} style={{ position: 'absolute', top: 6, right: 6 }} />
       </div>
@@ -95,8 +100,11 @@ export const MobileJobCard = memo(function MobileJobCard({ job, applied, onClick
           border: '1px solid var(--border)', borderRadius: 10,
           background: 'transparent', padding: '14px 12px',
           textAlign: 'left', width: '100%',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
         }}
       >
+        <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={32} />
+        <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3, paddingRight: 26 }}>{job.JobTitle}</p>
         <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: 4 }}>{job.Company} · {getDisplayLocation(job)}</p>
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3 }}>{relativeDate(job.PostedDate || job.scrapedAt)}</p>
@@ -107,6 +115,7 @@ export const MobileJobCard = memo(function MobileJobCard({ job, applied, onClick
             {job.filterRelocation === 'available' && <Badge variant="neutral" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Relocation</Badge>}
           </div>
         )}
+        </div>
       </button>
       <SaveJobButton jobId={job._id} style={{ position: 'absolute', top: 10, right: 8 }} />
     </div>

@@ -1,9 +1,9 @@
 'use client';
 
-// 40px company logo via Unavatar, gracefully falling back to a letter avatar
-// (first initial in a colored circle) when the image fails to load.
+// Company logo via the Google Favicon API — a single keyless, rate-limit-free
+// source. Two states only: the image, or the letter avatar on error.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { companyLogoUrl } from '../utils/companyLogo';
 
 export default function CompanyLogo({ companyName, domain, size = 40 }: {
@@ -12,6 +12,11 @@ export default function CompanyLogo({ companyName, domain, size = 40 }: {
   size?: number;
 }) {
   const [imgErr, setImgErr] = useState(false);
+
+  // A recycled component instance (list re-render with a different job) must
+  // retry the image for the new company.
+  useEffect(() => { setImgErr(false); }, [companyName, domain]);
+
   const url = companyLogoUrl({ companyName, domain });
 
   if (url && !imgErr) {
@@ -21,7 +26,13 @@ export default function CompanyLogo({ companyName, domain, size = 40 }: {
         alt=""
         width={size}
         height={size}
-        style={{ width: size, height: size, objectFit: 'contain', borderRadius: 8, flexShrink: 0 }}
+        style={{
+          width: size, height: size, objectFit: 'contain', flexShrink: 0,
+          // Consistent frame: logos with baked-in white padding (e.g. Asana)
+          // otherwise read as floating white boxes on the cream background.
+          borderRadius: 6, background: 'var(--bg-surface)',
+          border: '1px solid var(--border)', padding: 2,
+        }}
         onError={() => setImgErr(true)}
         loading="lazy"
       />

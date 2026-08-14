@@ -12,6 +12,7 @@
 import { forwardRef, memo } from 'react';
 import type { IJob } from '../../types';
 import { Badge } from '../ui';
+import CompanyLogo from '../CompanyLogo';
 import { compactSalary } from '../../utils/job';
 import { getCountryLabel, getRemoteDisplayLocation } from '../../utils/remoteJob';
 import { relativeDate } from '../../utils/date';
@@ -51,8 +52,11 @@ export const RemoteDesktopJobCard = memo(
           background: selected ? 'var(--acid-soft)' : 'transparent',
           borderRadius: 8, padding: '12px 14px',
           textAlign: 'left', cursor: 'pointer', width: '100%',
+          display: 'flex', alignItems: 'flex-start', gap: 10,
         }}
       >
+        <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={28} />
+        <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word' }}>
           {job.JobTitle}
         </p>
@@ -78,6 +82,7 @@ export const RemoteDesktopJobCard = memo(
             </Badge>
           )}
         </div>
+        </div>
       </button>
     );
   })
@@ -96,14 +101,18 @@ export const RemoteMobileJobCard = memo(function RemoteMobileJobCard({ job, onCl
         border: '1px solid var(--border)', borderRadius: 10,
         background: 'transparent', padding: '14px 12px',
         textAlign: 'left', width: '100%',
+        display: 'flex', alignItems: 'flex-start', gap: 10,
       }}
     >
+      <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={32} />
+      <div style={{ flex: 1, minWidth: 0 }}>
       <p style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3 }}>{job.JobTitle}</p>
       <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: 4 }}>{job.Company} · {getRemoteDisplayLocation(job)}</p>
       <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3 }}>{relativeDate(job.PostedDate || job.scrapedAt)}</p>
       <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
         <CountryBadge country={job.Country} compact />
         <Badge variant="blue" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Remote</Badge>
+      </div>
       </div>
     </button>
   );

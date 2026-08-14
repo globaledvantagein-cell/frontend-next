@@ -7,6 +7,8 @@ export interface IJob {
   ApplicationURL: string;
   DirectApplyURL: string | null;
   PostedDate: string | null;
+  /** Real company web domain, extracted server-side from ApplicationURL. */
+  companyDomain?: string | null;
   Description: string;
   DescriptionHtml?: string | null;
   GermanRequired?: boolean;
