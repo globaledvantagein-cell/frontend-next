@@ -1,7 +1,7 @@
 /**
  * Server-driven job filters hook.
  *
- * All filtering and sorting happens on the backend via MongoDB queries.
+ * All filtering happens on the backend; ordering is a daily-seeded shuffle.
  * The hook manages:
  *   - filter state (UI updates instantly, search is debounced 400 ms)
  *   - fetching page 1 whenever committed filters change
@@ -30,12 +30,10 @@ import {
 // Re-export so existing imports keep working.
 export {
   PAGE_SIZE,
-  SORT_DROPDOWN_OPTIONS,
   DATE_DROPDOWN_OPTIONS,
   FILTER_CONTROL_STYLE,
   DEFAULT_FILTERS,
   type FilterState,
-  type SortOption,
   type DateFilter,
   type FilterDropdownOption,
 } from './jobFilterTypes';
@@ -145,7 +143,7 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
     const params = buildSearchParams(committedFilters, 1);
 
     // MUST send auth headers: the backend strips premium-gated filters
-    // (workplace/experience/employment/visa/relocation/salary/sort=salary) for
+    // (workplace/experience/employment/visa/relocation/salary) for
     // anonymous requests. With noAuth, even premium users got unfiltered results.
     apiGet<{ jobs?: IJob[]; totalJobs?: number }>(`/api/jobs?${params}`, { signal: ctrl.signal })
       .then(data => {

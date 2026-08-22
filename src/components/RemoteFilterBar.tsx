@@ -20,12 +20,10 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import FilterDropdown from './FilterDropdown';
 import { Input } from './ui';
 import {
-  SORT_DROPDOWN_OPTIONS,
   DATE_DROPDOWN_OPTIONS,
   EXPERIENCE_OPTIONS,
   EMPLOYMENT_OPTIONS,
   FILTER_CONTROL_STYLE,
-  type SortOption,
   type DateFilter,
   type FilterDropdownOption,
 } from '../hooks/jobFilterTypes';
@@ -149,19 +147,6 @@ function DateSelect({ filters, setFilters, openDropdown, setOpenDropdown, widthO
       openId={openDropdown} onOpenChange={setOpenDropdown}
       active={filters.date !== 'All'}
       width={widthOverride ?? 120}
-    />
-  );
-}
-
-function SortSelect({ filters, setFilters, openDropdown, setOpenDropdown, width }: CommonProps & { width: number | string }) {
-  return (
-    <FilterDropdown
-      id="sort" label="Sort" value={filters.sort}
-      options={SORT_DROPDOWN_OPTIONS as unknown as FilterDropdownOption[]}
-      onChange={val => setFilters(prev => ({ ...prev, sort: val as SortOption }))}
-      openId={openDropdown} onOpenChange={setOpenDropdown}
-      active={filters.sort !== 'newest'}
-      width={width}
     />
   );
 }
@@ -467,9 +452,8 @@ export function RemoteFilterBar({
             )}
           </div>
 
-          {/* Sort + count sit on the SAME row, right-aligned — matching /jobs. */}
+          {/* Count sits right-aligned on this row — matching /jobs. */}
           <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <SortSelect {...base} width={140} />
             {countLabel}
           </div>
         </div>
@@ -548,9 +532,6 @@ export function RemoteMobileFilterSheet({
           </button>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={sectionLabelStyle}>Sort by</div>
-          <SortSelect {...base} width="100%" />
-
           <div style={sectionLabelStyle}>Filter by</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <CountrySelect {...base} facetCounts={facetCounts} widthOverride="100%" />

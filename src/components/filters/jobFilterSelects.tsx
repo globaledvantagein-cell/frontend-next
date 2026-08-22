@@ -3,16 +3,14 @@
 /**
  * Shared building blocks for the dashboard filter bar.
  * Both the inline filter bar and the mobile bottom sheet render the same
- * three FilterDropdowns; extracting them eliminates the duplication.
+ * FilterDropdowns; extracting them eliminates the duplication.
  */
 import { Lock } from 'lucide-react';
 import FilterDropdown from '../FilterDropdown';
 import { track } from '../../utils/analytics';
 import {
-  SORT_DROPDOWN_OPTIONS,
   DATE_DROPDOWN_OPTIONS,
   type FilterState,
-  type SortOption,
   type DateFilter,
   type FilterDropdownOption,
 } from '../../hooks/useJobFilters';
@@ -97,33 +95,6 @@ function LockedControl({ locked, onPremiumRequired, filterName, children }: Prem
         style={{ position: 'absolute', inset: 0, zIndex: 3, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
       />
     </div>
-  );
-}
-
-export function SortSelect({
-  width, filters, setFilters, openDropdown, setOpenDropdown, locked, onPremiumRequired,
-}: Pick<SelectsProps, 'filters' | 'setFilters' | 'openDropdown' | 'setOpenDropdown'> & PremiumGateProps & { width: number | string }) {
-  // Salary sort is Premium-only. For non-premium users mark it locked in the
-  // list and intercept its selection with the upgrade modal.
-  const options = (SORT_DROPDOWN_OPTIONS as unknown as FilterDropdownOption[]).map(o =>
-    locked && o.value === 'salary' ? { ...o, label: `${o.label} 🔒` } : o,
-  );
-
-  return (
-    <FilterDropdown
-      id="sort"
-      label="Sort"
-      value={filters.sort}
-      options={options}
-      onChange={val => {
-        if (locked && val === 'salary') { onPremiumRequired?.(); return; }
-        setFilters(prev => ({ ...prev, sort: val as SortOption }));
-      }}
-      openId={openDropdown}
-      onOpenChange={setOpenDropdown}
-      active={filters.sort !== 'newest'}
-      width={width}
-    />
   );
 }
 

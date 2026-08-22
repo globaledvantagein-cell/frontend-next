@@ -11,12 +11,6 @@ export const SEARCH_DEBOUNCE_MS = 400;
 // wasteful requests while the user is still typing the full figure.
 export const SALARY_DEBOUNCE_MS = 800;
 
-export const SORT_DROPDOWN_OPTIONS = [
-  { value: 'newest',  label: 'Newest first'   },
-  { value: 'company', label: 'Company A-Z'    },
-  { value: 'salary',  label: 'Top salary'      },
-] as const;
-
 export const DATE_DROPDOWN_OPTIONS = [
   { value: 'All',        label: 'All time'   },
   { value: 'Today',      label: 'Today'      },
@@ -57,14 +51,12 @@ export const FILTER_CONTROL_STYLE: CSSProperties = {
   outline: 'none',
 };
 
-export type SortOption = 'newest' | 'company' | 'salary';
 export type DateFilter = 'All' | 'Today' | 'This Week' | 'This Month';
 
 export interface FilterState {
   company:    string[];
   category:   string[];
   date:       DateFilter;
-  sort:       SortOption;
   search:     string;
   // Attribute filters (multi-select arrays of canonical values).
   workplace:  string[];
@@ -83,7 +75,6 @@ export const DEFAULT_FILTERS: FilterState = {
   company:    [],
   category:   [],
   date:       'All',
-  sort:       'newest',
   search:     '',
   workplace:  [],
   experience: [],
@@ -125,7 +116,6 @@ export function buildSearchParams(filters: FilterState, page: number): URLSearch
 
   if (filters.search.trim())     p.set('search', filters.search.trim());
   if (filters.date !== 'All')    p.set('date',   filters.date);
-  if (filters.sort !== 'newest') p.set('sort',   filters.sort);
 
   if (filters.visa)       p.set('visa', 'true');
   if (filters.relocation) p.set('relocation', 'true');

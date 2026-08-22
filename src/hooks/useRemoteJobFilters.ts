@@ -23,7 +23,6 @@ import {
   PAGE_SIZE,
   SEARCH_DEBOUNCE_MS,
   SALARY_DEBOUNCE_MS,
-  type SortOption,
   type DateFilter,
   type FilterDropdownOption,
 } from './jobFilterTypes';
@@ -55,7 +54,6 @@ export interface RemoteFilterState {
   /** Remote-only facet. Empty = all countries. */
   country:    string[];
   date:       DateFilter;
-  sort:       SortOption;
   search:     string;
   workplace:  string[];
   experience: string[];
@@ -71,7 +69,6 @@ export const DEFAULT_REMOTE_FILTERS: RemoteFilterState = {
   category:   [],
   country:    [],
   date:       'All',
-  sort:       'newest',
   search:     '',
   workplace:  [],
   experience: [],
@@ -95,7 +92,6 @@ export function buildRemoteSearchParams(filters: RemoteFilterState, page: number
 
   if (filters.search.trim())     p.set('search', filters.search.trim());
   if (filters.date !== 'All')    p.set('date',   filters.date);
-  if (filters.sort !== 'newest') p.set('sort',   filters.sort);
   if (filters.hasSalary)         p.set('hasSalary', 'true');
 
   // Only send salary bounds that parse to a valid non-negative integer.

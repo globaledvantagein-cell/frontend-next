@@ -11,7 +11,7 @@ import { Input } from './ui';
 import { FILTER_CONTROL_STYLE, type FilterState, type FilterDropdownOption } from '../hooks/useJobFilters';
 import { WORKPLACE_OPTIONS, EXPERIENCE_OPTIONS, EMPLOYMENT_OPTIONS, type IFacetCounts } from '../hooks/jobFilterTypes';
 import {
-  SortSelect, FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs, PremiumBadge,
+  FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs, PremiumBadge,
   CategorySelect, DateSelect, CompanySelect,
 } from './filters/jobFilterSelects';
 
@@ -318,7 +318,6 @@ export function DashboardFilterBar({
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
-            <SortSelect {...selectsProps} {...premiumProps} width={140} />
             {countLabel}
           </div>
         </div>
@@ -408,8 +407,6 @@ export function MobileFilterSheet({
           </button>
         </div>
         <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontWeight: 600, fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>Sort by</div>
-          <SortSelect {...selectsProps} {...premiumProps} width="100%" />
           <div style={sectionLabelStyle}>Filter by</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <FilterSelects {...selectsProps} widthOverride="100%" />
