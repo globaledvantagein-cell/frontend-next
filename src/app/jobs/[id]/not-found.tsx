@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '@/utils/categorize';
+import { CATEGORY_ORDER, categorySlug } from '@/utils/categorize';
 
 // Rendered with a real HTTP 404 when a job URL points to a removed/inactive
 // listing. Instead of a dead end, offer a path forward (browse, search, related
@@ -35,16 +35,16 @@ export default function JobNotFound() {
           Explore by category
         </h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-          {CATEGORY_ORDER.map((cat) => (
+          {CATEGORY_ORDER.slice(0, 12).map((cat) => (
             <Link
               key={cat}
-              href={`/category/${cat}`}
+              href={`/category/${categorySlug(cat)}`}
               style={{
                 fontSize: '0.85rem', padding: '6px 12px', borderRadius: 999,
                 border: '1px solid var(--border)', color: 'var(--text-secondary)', textDecoration: 'none',
               }}
             >
-              {CATEGORY_LABELS[cat]}
+              {cat}
             </Link>
           ))}
         </div>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CATEGORY_LABELS, CATEGORY_ORDER, type Category } from '@/utils/categorize';
+import { CATEGORY_ORDER, CATEGORY_SLUGS, categoryFromSlug, categorySlug } from '@/utils/categorize';
 import { fetchJobs, SITE_URL } from '@/lib/serverApi';
 import SeoJobCard from '@/components/seo/SeoJobCard';
 import JsonLd, { itemListJsonLd, breadcrumbJsonLd } from '@/components/seo/JsonLd';
@@ -14,20 +14,20 @@ export const revalidate = 3600;
 // Prerender every category at build so each page is static + ISR (served
 // instantly), not dynamically rendered on the first request.
 export function generateStaticParams() {
-  return CATEGORY_ORDER.map((category) => ({ category }));
+  // Route params are SLUGS ('software-engineering'), not category names —
+  // a name contains spaces and "&" and cannot be a path segment.
+  return CATEGORY_SLUGS.map((category) => ({ category }));
 }
 
 type Params = { params: Promise<{ category: string }> };
 
-function isCategory(slug: string): slug is Category {
-  return (CATEGORY_ORDER as readonly string[]).includes(slug);
-}
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { category: slug } = await params;
-  if (!isCategory(slug)) return { title: 'Category not found' };
-  const label = CATEGORY_LABELS[slug];
-  const { totalJobs } = await fetchJobs({ category: slug, limit: 1, revalidate: 3600 });
+  const category = categoryFromSlug(slug);
+  if (!category) return { title: 'Category not found' };
+  const label = category;
+  // The API validates against the full category NAME, not the slug.
+  const { totalJobs } = await fetchJobs({ category, limit: 1, revalidate: 3600 });
   const title = `English ${label} Jobs in Germany — No German Required`;
   const description = `${totalJobs} ${label} ${
     totalJobs === 1 ? 'job' : 'jobs'
@@ -42,11 +42,12 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 export default async function CategoryPage({ params }: Params) {
   const { category: slug } = await params;
-  if (!isCategory(slug)) notFound();
-  const label = CATEGORY_LABELS[slug];
+  const category = categoryFromSlug(slug);
+  if (!category) notFound();
+  const label = category;
 
-  const { jobs, totalJobs } = await fetchJobs({ category: slug, limit: 100, revalidate: 3600 });
-  const otherCategories = CATEGORY_ORDER.filter((c) => c !== slug);
+  const { jobs, totalJobs } = await fetchJobs({ category, limit: 100, revalidate: 3600 });
+  const otherCategories = CATEGORY_ORDER.filter((c) => c !== category);
 
   const title = `English ${label} Jobs in Germany`;
 
@@ -79,7 +80,7 @@ export default async function CategoryPage({ params }: Params) {
 
       <div style={{ margin: '24px 0' }}>
         <Link
-          href={`/jobs?category=${encodeURIComponent(slug)}`}
+          href={`/jobs?category=${encodeURIComponent(category)}`}
           style={{ color: 'var(--primary)', fontWeight: 700, textDecoration: 'none' }}
         >
           Browse all {label} jobs →
@@ -107,7 +108,7 @@ export default async function CategoryPage({ params }: Params) {
           {otherCategories.map((c) => (
             <Link
               key={c}
-              href={`/category/${c}`}
+              href={`/category/${categorySlug(c)}`}
               style={{
                 fontSize: '0.85rem',
                 padding: '6px 12px',
@@ -117,7 +118,7 @@ export default async function CategoryPage({ params }: Params) {
                 textDecoration: 'none',
               }}
             >
-              {CATEGORY_LABELS[c]}
+              {c}
             </Link>
           ))}
         </div>

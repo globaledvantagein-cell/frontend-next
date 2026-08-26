@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { CANONICAL_CITIES } from '@/data/cities';
-import { CATEGORY_ORDER } from '@/utils/categorize';
+import { CATEGORY_SLUGS } from '@/utils/categorize';
 import { CAREER_GUIDE_CATEGORIES } from '@/data/careerGuide';
 import { fetchPublishedArticles, fetchJobs, SITE_URL } from '@/lib/serverApi';
 
@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE_URL}/career-guide`, changeFrequency: 'weekly', priority: 0.8, lastModified: now },
   ];
 
-  for (const c of CATEGORY_ORDER) {
+  for (const c of CATEGORY_SLUGS) {
     entries.push({ url: `${SITE_URL}/category/${c}`, changeFrequency: 'daily', priority: 0.8, lastModified: now });
   }
   for (const city of CANONICAL_CITIES) {

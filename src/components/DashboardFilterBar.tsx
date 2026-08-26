@@ -14,6 +14,7 @@ import {
   FilterSelects, AttributeSelects, ToggleChips, SalaryRangeInputs, PremiumBadge,
   CategorySelect, DateSelect, CompanySelect,
 } from './filters/jobFilterSelects';
+import SearchWithGhost from './filters/SearchWithGhost';
 
 // Pill-shaped search field style — matches the .filter-pill control language.
 const searchPillStyle = { borderRadius: 999 } as const;
@@ -176,15 +177,13 @@ export function DashboardFilterBar({
 
   // Mobile-only search (full width; the desktop search is capped at 280).
   const searchInput = (
-    <div className="relative" style={{ flex: 1, minWidth: 0 }}>
-      <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-      <Input
-        value={filters.search}
-        onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-        placeholder="Search jobs..."
-        style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, width: '100%', paddingLeft: 32, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
-      />
-    </div>
+    <SearchWithGhost
+      value={filters.search}
+      onChange={next => setFilters(prev => ({ ...prev, search: next }))}
+      endpoint="/api/jobs/autocomplete"
+      paddingLeft={32}
+      style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
+    />
   );
 
   const countLabel = (
@@ -251,13 +250,13 @@ export function DashboardFilterBar({
       <div className="filter-bar-full" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 0, width: '100%' }}>
         {/* The always-visible single row. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%' }}>
-          <div className="relative" style={{ flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}>
-            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-            <Input
+          <div style={{ display: 'flex', flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}>
+            <SearchWithGhost
               value={filters.search}
-              onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-              placeholder="Search jobs..."
-              style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, width: '100%', paddingLeft: 34, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
+              onChange={next => setFilters(prev => ({ ...prev, search: next }))}
+              endpoint="/api/jobs/autocomplete"
+              paddingLeft={34}
+              style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
             />
           </div>
           <CategorySelect {...baseSelect} categoryOptions={categoryOptions} />

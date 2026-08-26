@@ -11,7 +11,7 @@
  */
 import { Link } from '@/compat/router';
 import { Linkedin, Twitter, MessageCircle } from 'lucide-react';
-import { CATEGORY_LABELS, CATEGORY_ORDER } from '../utils/categorize';
+import { CATEGORY_ORDER, categorySlug } from '../utils/categorize';
 import { openCookieSettings } from '../utils/consent';
 
 const SOCIALS: ReadonlyArray<{ label: string; href: string; Icon: typeof Linkedin }> = [
@@ -69,8 +69,9 @@ function InlineLinkRow({ label, links }: { label: string; links: ReadonlyArray<r
 }
 
 export default function Footer() {
-  const categoryLinks: ReadonlyArray<readonly [string, string]> = CATEGORY_ORDER.map(
-    (cat) => [`/category/${cat}`, CATEGORY_LABELS[cat]] as const,
+  // 28 categories would overwhelm the footer — link the top 8 by volume.
+  const categoryLinks: ReadonlyArray<readonly [string, string]> = CATEGORY_ORDER.slice(0, 8).map(
+    (cat) => [`/category/${categorySlug(cat)}`, cat] as const,
   );
 
   return (

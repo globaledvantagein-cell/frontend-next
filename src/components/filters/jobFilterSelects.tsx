@@ -141,6 +141,7 @@ export function CategorySelect({
       onOpenChange={setOpenDropdown}
       active={filters.category.length > 0}
       width={widthOverride ?? 180}
+      searchable
     />
   );
 }

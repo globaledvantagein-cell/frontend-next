@@ -11,7 +11,7 @@ import { UsageBar, PromoCodeForm } from '../components/UpgradeModal';
 import { BRAND } from '../theme/brand';
 import { apiGet, fetchSubscriptionHistory } from '../utils/jobApi';
 import type { SubscriptionResponse } from '../types';
-import { CATEGORY_LABELS, type Category } from '../utils/categorize';
+import { getCategoryLabel } from '../utils/categorize';
 import IdentityCard from '../components/profile/IdentityCard';
 import EmailPreferences from '../components/profile/EmailPreferences';
 import JobPreferencesForm from '../components/profile/JobPreferencesForm';
@@ -307,9 +307,9 @@ function SavedJobsList() {
                   {entry.job.Company} · {entry.job.Location}
                 </p>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                  {entry.job.Category && CATEGORY_LABELS[entry.job.Category as Category] && (
+                  {entry.job.Category && getCategoryLabel(entry.job.Category) && (
                     <Badge variant="blue" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
-                      {CATEGORY_LABELS[entry.job.Category as Category]}
+                      {getCategoryLabel(entry.job.Category)}
                     </Badge>
                   )}
                   {!entry.isActive && (

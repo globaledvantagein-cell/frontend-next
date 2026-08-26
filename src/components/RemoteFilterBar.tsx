@@ -18,6 +18,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import FilterDropdown from './FilterDropdown';
+import SearchWithGhost from './filters/SearchWithGhost';
 import { Input } from './ui';
 import {
   DATE_DROPDOWN_OPTIONS,
@@ -134,6 +135,7 @@ function CategorySelect({ filters, setFilters, openDropdown, setOpenDropdown, ca
       openId={openDropdown} onOpenChange={setOpenDropdown}
       active={filters.category.length > 0}
       width={widthOverride ?? 180}
+      searchable
     />
   );
 }
@@ -338,13 +340,14 @@ export function RemoteFilterBar({
   };
 
   const searchInput = (fullWidth: boolean) => (
-    <div className="relative" style={fullWidth ? { flex: 1, minWidth: 0 } : { flex: '1 1 200px', minWidth: 180, maxWidth: 280 }}>
-      <Search size={14} style={{ position: 'absolute', left: fullWidth ? 10 : 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
-      <Input
+    <div style={{ display: 'flex', ...(fullWidth ? { flex: 1, minWidth: 0 } : { flex: '1 1 200px', minWidth: 180, maxWidth: 280 }) }}>
+      <SearchWithGhost
         value={filters.search}
-        onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+        onChange={next => setFilters(prev => ({ ...prev, search: next }))}
+        endpoint="/api/remote-jobs/autocomplete"
         placeholder="Search remote jobs..."
-        style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, width: '100%', paddingLeft: fullWidth ? 32 : 34, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
+        paddingLeft={fullWidth ? 32 : 34}
+        style={{ ...FILTER_CONTROL_STYLE, ...searchPillStyle, color: 'var(--text-secondary)', borderColor: filters.search.trim() ? 'var(--acid)' : undefined }}
       />
     </div>
   );

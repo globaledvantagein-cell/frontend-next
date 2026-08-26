@@ -8,7 +8,7 @@ import { Badge } from './ui';
 import CompanyLogo from '../components/CompanyLogo';
 import { relativeDate } from '../utils/date';
 import { compactSalary, parseAllLocations, getPrimaryLocation } from '../utils/job';
-import { CATEGORY_LABELS, type Category } from '../utils/categorize';
+import { getCategoryLabel } from '../utils/categorize';
 
 interface HomeJobCardProps {
   job: IJob;
@@ -22,7 +22,9 @@ export default function HomeJobCard({ job }: HomeJobCardProps) {
   const allLocations = parseAllLocations(job);
   const location = getPrimaryLocation(job, allLocations) || 'Germany';
 
-  const categoryLabel = job.Category ? CATEGORY_LABELS[job.Category as Category] : null;
+  // getCategoryLabel, not a raw map lookup: jobs the AI categorizer has not
+  // reached yet still hold a legacy slug, which would render as a blank chip.
+  const categoryLabel = getCategoryLabel(job.Category);
 
   const badges = [
     categoryLabel

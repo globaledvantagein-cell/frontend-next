@@ -3,6 +3,7 @@
 import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useNavigate } from '@/compat/router';
 import type { IJob, ICompany } from '../types';
+import { HOME_CATEGORIES, categorySlug } from '../utils/categorize';
 import CohortWaitlistModal from '../components/CohortWaitlistModal';
 import CompanyLogo from '../components/CompanyLogo';
 
@@ -62,15 +63,30 @@ const COHORT_DETAILS = [
   { label: 'Seats', value: '20 per cohort' },
 ] as const;
 
-// Design category cards (wording verbatim); hrefs mapped to routes that exist.
-const CATEGORIES = [
-  { href: '/category/software', title: 'Software & Engineering', copy: 'Development, cloud, security and infrastructure.' },
-  { href: '/category/data', title: 'Data & AI', copy: 'Analytics, data science, machine learning and BI.' },
-  { href: '/category/product_tech', title: 'Product & Design', copy: 'Product management, UX, research and design.' },
-  { href: '/jobs?search=marketing', title: 'Marketing & Sales', copy: 'Brand, growth, communications and commercial roles.' },
-  { href: '/jobs?search=customer%20success', title: 'Customer Support & HR', copy: 'Customer success, people ops and recruiting roles.' },
-  { href: '/jobs?search=working%20student', title: 'Students & Graduates', copy: 'Internships, working student and graduate roles.' },
-] as const;
+// The 12 highest-volume categories, linked to their /category/<slug> pages.
+// All 28 would swamp the grid; the full set is on the jobs page filter.
+// Copy is per-category — the cards used to be hand-written groupings that no
+// longer map onto the backend's categories.
+const CATEGORY_COPY: Record<string, string> = {
+  'Software Engineering':       'Development, cloud, platform and infrastructure roles.',
+  'Sales':                      'Account executive, business development and revenue roles.',
+  'Operations & Strategy':      'Business operations, programme management and strategy.',
+  'Marketing & Growth':         'Brand, growth, content and demand generation.',
+  'Finance & Accounting':       'Controlling, FP&A, accounting and treasury.',
+  'Customer Success & Support': 'Onboarding, account management and customer support.',
+  'Data & Analytics':           'Analytics, data engineering, BI and data science.',
+  'Product Management':         'Product strategy, discovery and delivery.',
+  'HR & People':                'Recruiting, people operations and talent development.',
+  'Consulting':                 'Advisory, implementation and client-facing consulting.',
+  'IT & Enterprise Systems':    'Internal IT, systems administration and tooling.',
+  'Design':                     'Product design, UX research and brand design.',
+};
+
+const CATEGORIES = HOME_CATEGORIES.map(category => ({
+  href: `/category/${categorySlug(category)}`,
+  title: category,
+  copy: CATEGORY_COPY[category] ?? 'Open roles in this field, no German required.',
+}));
 
 const HERO_LOCATIONS = [
   { value: '', label: 'All Germany' },
