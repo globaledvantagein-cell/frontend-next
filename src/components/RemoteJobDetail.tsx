@@ -18,7 +18,7 @@ import { formatPostedDate } from '../utils/date';
 import { parseAllLocations, isMeaningful, detailedSalary } from '../utils/job';
 import { getRemoteDisplayLocation } from '../utils/remoteJob';
 import { Badge } from './ui';
-import { CountryBadge } from './jobs/RemoteJobListItem';
+import { CountryBadge } from './jobs/JobListItem';
 
 export default function RemoteJobDetail({ job }: { job: IJob }) {
   const [showAllLocations, setShowAllLocations] = useState(false);

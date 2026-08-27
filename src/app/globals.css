@@ -134,8 +134,35 @@ body::before {
   width: 3px;
 }
 
-/* ── Focus ring ───────────────────────────────────── */
+/* ── Focus ring ─────────────────────────────────────
+   The browser default is a hard blue ring; --focus-ring (0 0 0 3px @ 30%
+   alpha) was still heavy on form controls. Text inputs get a softer 2px glow
+   plus a border shift; everything else keeps the stronger ring, which is what
+   makes keyboard focus legible on buttons and links.
+
+   NOTE: outline is removed, never replaced with nothing — a control with no
+   visible focus state is a WCAG 2.4.7 failure. */
 :focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
+  border-color: var(--border-strong, var(--border));
+  box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.12);
+}
+
+/* Mouse clicks on a button should not paint a ring; keyboard focus must. */
+button:focus {
+  outline: none;
+}
+button:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
 }
@@ -1149,6 +1176,104 @@ body::before {
   }
 }
 
+/* ── Company logo marquee (homepage) ─────────────────────
+   The track renders the company list TWICE; translating it -50% lands the
+   second copy exactly where the first began, so the loop is seamless. Changing
+   the duplication count without changing this percentage will break it. */
+.marquee-mask {
+  /* Fade the two edges so logos enter and leave instead of being sliced by a
+     hard boundary. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  align-items: center;
+  gap: 48px;
+  width: max-content;
+  animation: marquee-scroll 45s linear infinite;
+}
+
+/* Pause so a logo can actually be read and clicked. */
+.marquee-track:hover,
+.marquee-track:focus-within {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+/* Continuous motion with no way to stop it is a vestibular trigger; WCAG
+   2.3.3 / prefers-reduced-motion says hold it still and let the row scroll
+   manually instead. */
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+  }
+  .marquee-mask {
+    overflow-x: auto !important;
+  }
+}
+
+/* ── Browse layout (/jobs) ───────────────────────────────
+   Replaces the split view: a fixed-width filter rail on the left, job cards
+   filling the rest. The detail panel is gone — cards open /jobs/[id] in a new
+   tab. .split-grid below is still used by /remote-jobs and the admin queues. */
+.browse-layout {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+  min-height: 0;
+}
+
+.browse-sidebar {
+  width: 300px;
+  min-width: 300px;
+  /* Sticky, not fixed: it scrolls with the page until it reaches the nav, then
+     holds while the (much longer) job column keeps scrolling. */
+  position: sticky;
+  top: 70px;
+  height: calc(100vh - 70px);
+  overflow-y: auto;
+  flex-shrink: 0;
+  /* Clears the scrollbar so rows and their right-aligned counts are not
+     tucked underneath it. */
+  padding-right: 8px;
+  scrollbar-width: thin;                      /* Firefox */
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Match .thin-scroll rather than the chunky default track. */
+.browse-sidebar::-webkit-scrollbar {
+  width: 3px;
+}
+.browse-sidebar::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+.browse-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.browse-jobs-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Below 768px the sidebar is replaced by the existing top bar + bottom sheet,
+   which are untouched by this layout. */
+@media (max-width: 767px) {
+  .browse-layout {
+    display: block;
+  }
+  .browse-sidebar {
+    display: none;
+  }
+}
+
 /* ── Dashboard page shell ────────────────────────────────
    One container for BOTH job pages (/jobs and /remote-jobs) so their width,
    centering, and gutters are identical. Nothing inside adds side padding. */
@@ -1174,6 +1299,18 @@ body::before {
 @media (min-width: 768px) {
   .mobile-list-only {
     display: none !important;
+  }
+}
+
+/* Mirror of .mobile-list-only for the /jobs card column. */
+.desktop-cards-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-cards-only {
+    display: flex;
+    flex-direction: column;
   }
 }
 

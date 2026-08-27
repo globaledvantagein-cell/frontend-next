@@ -97,10 +97,6 @@ const HERO_LOCATIONS = [
   { value: 'remote', label: 'Remote' },
 ] as const;
 
-function companyInitials(name: string): string {
-  return name.split(/\s+/).slice(0, 2).map(w => w.charAt(0)).join('').toUpperCase() || '•';
-}
-
 function primaryLocation(job: IJob): string {
   if (Array.isArray(job.AllLocations) && job.AllLocations.length > 0) return job.AllLocations[0];
   return job.Location || 'Germany';
@@ -308,21 +304,32 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
               }}>
                 Companies hiring in English
               </p>
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px 36px', flexWrap: 'wrap' }}>
-                {trustCompanies.map((c, i) => (
-                  <Link
-                    key={`${c.companyName}-${i}`}
-                    to="/directory"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 8,
-                      fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em',
-                      color: 'var(--text-muted)', textDecoration: 'none',
-                    }}
-                  >
-                    <CompanyLogo companyName={c.companyName} domain={c.domain} />
-                    {c.companyName}
-                  </Link>
-                ))}
+              {/* Infinite marquee. The track holds the list TWICE and animates
+                  to -50%: at the end of the cycle the second copy sits exactly
+                  where the first started, so the reset is invisible. Rendering
+                  one copy would snap back to an empty right edge. */}
+              <div className="marquee-mask" style={{ overflow: 'hidden', width: '100%' }}>
+                <div className="marquee-track" aria-label="Companies hiring in English">
+                  {[...trustCompanies, ...trustCompanies].map((c, i) => (
+                    <Link
+                      key={`${c.companyName}-${i}`}
+                      to="/directory"
+                      // The duplicate half is decorative — hide it from AT so the
+                      // company list isn't announced twice.
+                      aria-hidden={i >= trustCompanies.length}
+                      tabIndex={i >= trustCompanies.length ? -1 : undefined}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 10,
+                        fontSize: '0.9rem', fontWeight: 500, letterSpacing: '-0.01em',
+                        color: 'var(--text-secondary)', textDecoration: 'none',
+                        whiteSpace: 'nowrap', flexShrink: 0,
+                      }}
+                    >
+                      <CompanyLogo companyName={c.companyName} domain={c.domain} size={34} />
+                      {c.companyName}
+                    </Link>
+                  ))}
+                </div>
               </div>
             </div>
           </section>
@@ -362,12 +369,11 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <div style={{
-                        width: 42, height: 42, borderRadius: 10, background: 'var(--ink)', color: 'var(--paper)',
-                        display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: 14, flexShrink: 0,
-                      }}>
-                        {companyInitials(job.Company)}
-                      </div>
+                      <CompanyLogo
+                        companyName={job.Company}
+                        domain={job.companyDomain ?? undefined}
+                        size={36}
+                      />
                       <div style={{ minWidth: 0 }}>
                         <h3 style={{
                           fontSize: 15, fontWeight: 750, letterSpacing: '-0.01em', margin: 0,
