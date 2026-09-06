@@ -25,28 +25,11 @@ import { Badge } from '../ui';
 import CompanyLogo from '../CompanyLogo';
 import SaveJobButton from '../SaveJobButton';
 import { compactSalary, getDisplayLocation, normalizeWorkplace } from '../../utils/job';
-import { getCountryLabel, getRemoteDisplayLocation } from '../../utils/remoteJob';
+import { getRemoteDisplayLocation } from '../../utils/remoteJob';
 import { relativeDate } from '../../utils/date';
 
 /**
- * Country name badge, e.g. "United States". Renders nothing without a Country,
- * which is how a German job (no Country field) silently opts out.
- */
-export function CountryBadge({ country, compact = false }: { country?: string | null; compact?: boolean }) {
-  const label = getCountryLabel(country);
-  if (!label) return null;
-  return (
-    <Badge
-      variant="neutral"
-      style={{ fontSize: compact ? '0.65rem' : '0.72rem', padding: compact ? '1px 6px' : '2px 8px' }}
-    >
-      {label}
-    </Badge>
-  );
-}
-
-/**
- * Remote rows carry a Country and want "Remote · United States"; German rows
+ * Remote rows carry a Country and want "Remote"; German rows
  * want the city. Branching on the DATA rather than on a `variant` prop keeps
  * one component correct for both verticals with no caller coordination.
  */
@@ -59,10 +42,16 @@ interface DesktopProps {
   applied?: boolean;
   /** Full path for the card link, e.g. '/jobs/abc' or '/remote-jobs/abc'. */
   href: string;
+  /** Position within its loaded batch — drives the staggered entrance delay. */
+  index?: number;
 }
 
+/** CSS custom property for the .card-enter stagger. */
+const enterStyle = (index?: number) =>
+  ({ position: 'relative', '--i': index ?? 0 }) as React.CSSProperties;
+
 export const DesktopJobCard = memo(
-  forwardRef<HTMLAnchorElement, DesktopProps>(function DesktopJobCard({ job, applied, href }, ref) {
+  forwardRef<HTMLAnchorElement, DesktopProps>(function DesktopJobCard({ job, applied, href, index }, ref) {
     const salary = compactSalary(job);
     // Canonical filter field first (backend-reconciled), legacy field fallback.
     const wp = job.filterWorkplace
@@ -75,12 +64,13 @@ export const DesktopJobCard = memo(
     // The bookmark sits OUTSIDE the card link — an interactive control nested
     // inside an anchor is invalid HTML and swallows the inner click.
     return (
-      <div style={{ position: 'relative' }}>
+      <div className="card-enter" style={enterStyle(index)}>
         <a
           ref={ref}
           href={href}
           target="_blank"
           rel="noopener noreferrer"
+          className="job-card"
           style={{
             // Border-only separation: no fill, so the list reads as one surface
             // with the page behind it.
@@ -94,16 +84,15 @@ export const DesktopJobCard = memo(
         >
           <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={28} />
           <div style={{ flex: 1, minWidth: 0 }}>
-          <p style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word', paddingRight: 22 }}>
+          <p className="job-card__title" style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, whiteSpace: 'normal', wordBreak: 'break-word', paddingRight: 22 }}>
             {job.JobTitle}
           </p>
           <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {job.Company} · {displayLocation(job)} · {relativeDate(job.PostedDate || job.scrapedAt)}
           </p>
-          {(showWp || salary || applied || hasVisa || hasRelocation || job.Country) && (
+          {(showWp || salary || applied || hasVisa || hasRelocation) && (
             <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
               {applied && <Badge variant="green" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>✓ Applied</Badge>}
-              <CountryBadge country={job.Country} />
               {showWp && <Badge variant="blue"  style={{ fontSize: '0.72rem', padding: '2px 8px' }}>{wp}</Badge>}
               {hasVisa && <Badge variant="green" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>Visa</Badge>}
               {hasRelocation && <Badge variant="neutral" style={{ fontSize: '0.72rem', padding: '2px 8px' }}>Relocation</Badge>}
@@ -136,15 +125,17 @@ interface MobileProps {
   applied?: boolean;
   /** Full path for the card link, e.g. '/jobs/abc' or '/remote-jobs/abc'. */
   href: string;
+  index?: number;
 }
 
-export const MobileJobCard = memo(function MobileJobCard({ job, applied, href }: MobileProps) {
+export const MobileJobCard = memo(function MobileJobCard({ job, applied, href, index }: MobileProps) {
   return (
-    <div style={{ position: 'relative' }}>
+    <div className="card-enter" style={enterStyle(index)}>
       <a
         href={href}
         target="_blank"
         rel="noopener noreferrer"
+        className="job-card"
         style={{
           border: '1px solid var(--border)', borderRadius: 10,
           background: 'transparent', padding: '14px 12px',
@@ -155,13 +146,12 @@ export const MobileJobCard = memo(function MobileJobCard({ job, applied, href }:
       >
         <CompanyLogo companyName={job.Company} domain={job.companyDomain ?? undefined} size={32} />
         <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3, paddingRight: 26 }}>{job.JobTitle}</p>
+        <p className="job-card__title" style={{ fontSize: '1rem', color: 'var(--text-primary)', fontWeight: 700, lineHeight: 1.3, paddingRight: 26 }}>{job.JobTitle}</p>
         <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', marginTop: 4 }}>{job.Company} · {displayLocation(job)}</p>
         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 3 }}>{relativeDate(job.PostedDate || job.scrapedAt)}</p>
-        {(applied || job.Country || job.filterVisa === 'available' || job.filterRelocation === 'available') && (
+        {(applied || job.filterVisa === 'available' || job.filterRelocation === 'available') && (
           <div className="flex flex-wrap gap-1.5" style={{ marginTop: 6 }}>
             {applied && <Badge variant="green" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>✓ Applied</Badge>}
-            <CountryBadge country={job.Country} compact />
             {job.filterVisa === 'available' && <Badge variant="green" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Visa</Badge>}
             {job.filterRelocation === 'available' && <Badge variant="neutral" style={{ fontSize: '0.65rem', padding: '1px 6px' }}>Relocation</Badge>}
           </div>

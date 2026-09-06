@@ -147,24 +147,17 @@ body::before {
   box-shadow: var(--focus-ring);
 }
 
-input:focus,
-input:focus-visible,
-textarea:focus,
-textarea:focus-visible,
-select:focus,
-select:focus-visible {
+input:focus, input:focus-visible,
+select:focus, select:focus-visible,
+textarea:focus, textarea:focus-visible,
+button:focus-visible {
   outline: none;
-  border-color: var(--border-strong, var(--border));
-  box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.12);
+  box-shadow: 0 0 0 2px rgba(31, 111, 235, 0.1);
 }
 
 /* Mouse clicks on a button should not paint a ring; keyboard focus must. */
 button:focus {
   outline: none;
-}
-button:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -533,13 +526,114 @@ button:focus-visible {
   font-style: italic;
 }
 
-/* ── Skeleton ─────────────────────────────────────── */
+/* ── Browse cards + detail page motion ─────────────────────────
+   Every state change here gets a 150–200ms ease so nothing snaps:
+   hover on a card, a freshly loaded page of cards, the detail page
+   swapping its skeleton for content, and the search ghost text. */
+.job-card {
+  /* Explicit properties only — `all` re-runs layout-affecting transitions
+     (padding, width) and forces a style recalc on every hover. */
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.job-card:hover {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-strong) !important;
+  box-shadow: 0 2px 10px rgba(20, 20, 20, 0.08);
+  transform: translateY(-1px);
+}
+[data-theme='dark'] .job-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+.job-card:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+/* Title tints on hover so the whole card reads as one link target. */
+.job-card__title { transition: color 150ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .job-card:hover .job-card__title { color: var(--primary); }
+}
+
+/* Newly mounted cards (initial page + every infinite-scroll batch). Keys are
+   stable so already-visible cards never re-run this. `--i` is the card's
+   index within its batch; the delay is capped so a 30-card page finishes
+   entering in ~400ms instead of trailing off for a second. */
+.card-enter {
+  animation: cardEnter 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(min(var(--i, 0), 10) * 32ms);
+}
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Detail page body: skeleton → content swap and the initial page paint. */
+.page-fade-in {
+  animation: fadeIn 200ms ease both;
+}
+
+/* Search ghost text stays mounted and fades instead of popping. */
+.ghost-text {
+  transition: opacity 150ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-card { transition: none; }
+  .job-card:hover { transform: none; }
+  .card-enter,
+  .page-fade-in { animation: none; opacity: 1; }
+  .ghost-text { transition: none; }
+}
+
+/* ── Skeleton ─────────────────────────────────────────────────────────
+   The old gradient went --paper2 → --surface-solid, which are the SAME colour
+   in dark mode, so placeholders were invisible. Base and highlight are now
+   derived from the text colour so they read in both themes, and the sweep is
+   a translated ::after (compositor-only) instead of a background-position
+   animation on a 300%-wide gradient. */
 .skeleton {
-  background: linear-gradient(90deg, var(--paper2) 25%, var(--surface-solid) 50%, var(--paper2) 75%);
-  background-size: 300% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--text-primary) 7%, var(--bg-surface));
   border-radius: 10px;
 }
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--text-primary) 9%, transparent) 50%,
+    transparent 100%
+  );
+  animation: skeleton-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes skeleton-sweep {
+  to { transform: translateX(100%); }
+}
+/* Structural skeleton that mirrors a job card, so the swap to real content
+   does not reflow. Same border, radius and padding as .job-card. */
+.skeleton-card {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  animation: fadeIn 200ms ease both;
+}
+.skeleton-card > .skeleton { flex-shrink: 0; }
+.skeleton-card__lines { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+/* Successive placeholders pulse slightly out of phase so the list reads as
+   loading rather than as one frozen block. */
+.skeleton-card:nth-child(2n) .skeleton::after { animation-delay: 0.15s; }
+.skeleton-card:nth-child(3n) .skeleton::after { animation-delay: 0.3s; }
 
 /* ── Dot grid pattern (notebook paper feel) ───────── */
 .grid-bg {
@@ -1230,8 +1324,12 @@ button:focus-visible {
 }
 
 .browse-sidebar {
-  width: 300px;
-  min-width: 300px;
+  /* 312px = the old 300px rail + 12px of inner padding (6px each side), so
+     focus rings and hover backgrounds have room and are never clipped by the
+     rail's own scroll box. */
+  width: 312px;
+  min-width: 312px;
+  padding: 0 6px;
   /* Sticky, not fixed: it scrolls with the page until it reaches the nav, then
      holds while the (much longer) job column keeps scrolling. */
   position: sticky;
@@ -1241,14 +1339,14 @@ button:focus-visible {
   flex-shrink: 0;
   /* Clears the scrollbar so rows and their right-aligned counts are not
      tucked underneath it. */
-  padding-right: 8px;
+  padding-right: 12px;
   scrollbar-width: thin;                      /* Firefox */
   scrollbar-color: var(--border) transparent;
 }
 
 /* Match .thin-scroll rather than the chunky default track. */
 .browse-sidebar::-webkit-scrollbar {
-  width: 3px;
+  width: 5px;
 }
 .browse-sidebar::-webkit-scrollbar-thumb {
   background: var(--border);
@@ -2332,4 +2430,399 @@ button:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .ejg-parsing__dots span,
   .ejg-parsing__msg { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOTION SYSTEM — route feedback, state swaps, and micro-interactions.
+   Every interactive element gets a small, fast (120–200ms) response so the
+   UI never feels stuck between a click and its result. All of it is
+   compositor-friendly (opacity / transform only) and disabled under
+   prefers-reduced-motion at the bottom of this block.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Route progress bar ─────────────────────────────────────────────
+   A 2px brand-blue line under the nav that starts moving the moment an
+   internal link is clicked and completes when the new route commits. This is
+   the single strongest cue that "something is happening" during a slow
+   navigation — without it the old page just sits there. */
+.route-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+.route-progress.active { opacity: 1; }
+.route-progress__bar {
+  height: 100%;
+  width: 0%;
+  background: var(--primary);
+  box-shadow: 0 0 8px var(--primary);
+  transition: width 200ms ease-out;
+}
+.route-progress.active .route-progress__bar {
+  animation: route-progress-crawl 8s cubic-bezier(0.1, 0.6, 0.2, 1) forwards;
+}
+.route-progress.done .route-progress__bar {
+  animation: none;
+  width: 100% !important;
+}
+@keyframes route-progress-crawl {
+  0%   { width: 0%; }
+  15%  { width: 40%; }
+  50%  { width: 75%; }
+  100% { width: 92%; }
+}
+
+/* ── Page enter — content fades/rises in on every route change ───── */
+.page-enter {
+  animation: pageEnter 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Connection banner (browser offline) ───────────────────────────── */
+.conn-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.82rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  animation: connIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.conn-banner__dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger);
+  animation: connPulse 1.4s ease-in-out infinite;
+}
+.conn-banner--online .conn-banner__dot { background: var(--success); animation: none; }
+@keyframes connIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes connPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(0.8); }
+}
+
+/* ── Error state ───────────────────────────────────────────────────── */
+.error-state {
+  text-align: center;
+  padding: 56px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: var(--bg-surface);
+  animation: scaleIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.error-state__icon {
+  width: 48px; height: 48px; border-radius: 12px;
+  margin: 0 auto 16px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--danger-soft);
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent);
+}
+.error-state__title { font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: 6px; }
+.error-state__body  { font-size: 0.88rem; color: var(--text-secondary); max-width: 380px; margin: 0 auto 18px; line-height: 1.55; }
+.error-state__hint  { font-size: 0.74rem; color: var(--text-muted); margin-top: 14px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* ── Sidebar check rows ────────────────────────────────────────────── */
+.check-row {
+  transition: background-color 120ms ease, color 120ms ease, transform 120ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  /* !important: CheckRow sets background/border inline for the checked state,
+     and inline always beats a plain :hover rule. Checked rows keep their tint
+     because the checked colour is stronger than 6% ink. */
+  .check-row:not([aria-pressed="true"]):hover { background: color-mix(in srgb, var(--text-primary) 6%, transparent) !important; }
+  .check-row:not([aria-pressed="true"]):hover .check-box { border-color: var(--text-secondary) !important; }
+}
+.check-row:active { transform: scale(0.985); }
+.check-box {
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.check-box.is-checked { animation: checkPop 220ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes checkPop {
+  0%   { transform: scale(0.7); }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* ── Save (bookmark) button ────────────────────────────────────────── */
+.save-btn {
+  transition: color 140ms ease, transform 140ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 140ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .save-btn:hover { transform: scale(1.15); background: color-mix(in srgb, var(--text-primary) 6%, transparent); color: var(--primary); }
+}
+.save-btn:active { transform: scale(0.9); }
+.save-btn.is-saved svg { animation: savePop 320ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes savePop {
+  0%   { transform: scale(0.6) rotate(-10deg); }
+  60%  { transform: scale(1.3) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* ── Theme toggle — icons cross-fade and rotate ────────────────────── */
+.theme-toggle {
+  transition: border-color 160ms ease, color 160ms ease, transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), background-color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .theme-toggle:hover { border-color: var(--text-secondary); color: var(--text-primary); transform: rotate(-15deg); }
+}
+.theme-toggle:active { transform: scale(0.9) rotate(-15deg); }
+.theme-icon svg { animation: themeIconIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes themeIconIn {
+  from { opacity: 0; transform: rotate(-90deg) scale(0.6); }
+  to   { opacity: 1; transform: rotate(0) scale(1); }
+}
+
+/* ── Company logo — fades in when the image lands instead of popping ── */
+.company-logo {
+  opacity: 0;
+  transition: opacity 220ms ease, transform 220ms ease;
+  transform: scale(0.92);
+}
+.company-logo.is-loaded { opacity: 1; transform: none; }
+.company-logo--fallback { animation: fadeIn 200ms ease both; }
+
+/* ── Nav links — underline slides in on hover ──────────────────────── */
+.nav-link { position: relative; }
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--acid);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nav-link.is-active::after { transform: scaleX(1); }
+@media (hover: hover) and (pointer: fine) {
+  .nav-link:hover::after { transform: scaleX(1); }
+}
+
+/* ── Result count — the number ticks in when it changes ────────────── */
+.count-swap {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  animation: countSwap 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes countSwap {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* ── Generic buttons: lift on hover ────────────────────────────────── */
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover { box-shadow: 0 4px 14px color-mix(in srgb, var(--primary) 35%, transparent); transform: translateY(-1px); }
+  .btn-ghost:hover, .btn-outline:hover { transform: translateY(-1px); }
+}
+
+/* ── Load-more spinner ─────────────────────────────────────────────── */
+.load-more-btn {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 140ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .load-more-btn:not(:disabled):hover { border-color: var(--text-secondary); color: var(--text-primary); background: color-mix(in srgb, var(--text-primary) 4%, transparent); }
+}
+
+/* ── Reduced motion: everything above collapses to instant ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .route-progress, .route-progress__bar { animation: none !important; transition: none !important; }
+  .page-enter, .card-enter, .skeleton-card, .error-state, .conn-banner,
+  .count-swap, .theme-icon svg, .check-box.is-checked, .save-btn.is-saved svg { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .skeleton::after { animation: none; }
+  .company-logo { opacity: 1; transform: none; transition: none; }
+  .theme-toggle:hover, .save-btn:hover, .check-row:active { transform: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   POLISH PASS — focus rings, scrollbars, and one shared easing.
+   --ease-out-soft is the curve used for every transform in the app from
+   here on: fast start, long soft landing (the "settles like a physical
+   object" feel). Durations: 160ms for colour, 240–320ms for movement.
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  --ease-out-soft: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Text inputs: one focus treatment everywhere ──────────────────────
+   The global input:focus rule painted a 2px 10%-alpha rectangle that was
+   invisible on dark and clashed with the pill border on light. Now: the
+   border itself turns brand-blue and a soft 3px halo follows the element's
+   OWN radius, animated in. */
+input:focus, input:focus-visible,
+select:focus, select:focus-visible,
+textarea:focus, textarea:focus-visible {
+  outline: none;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+input, select, textarea {
+  transition: border-color 160ms ease, box-shadow 200ms var(--ease-out-soft), background-color 160ms ease;
+}
+/* The rail's search pill: the icon tints with the ring so the whole control
+   reads as focused, not just its edge. */
+.search-input:focus { background: var(--bg-surface) !important; }
+.search-input:focus ~ * , .search-input:focus + * { color: var(--primary); }
+.relative:has(> .search-input:focus) > svg { color: var(--primary) !important; }
+.relative > svg { transition: color 160ms ease; }
+
+/* ── Scrollbars inside the rail: overlay-style, visible only while the
+   pointer is over the list, never overlapping content ──────────────── */
+.scroll-list {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 200ms ease;
+}
+.scroll-list:hover { scrollbar-color: var(--border) transparent; }
+.scroll-list::-webkit-scrollbar { width: 4px; }
+.scroll-list::-webkit-scrollbar-track { background: transparent; }
+.scroll-list::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; transition: background 200ms ease; }
+.scroll-list:hover::-webkit-scrollbar-thumb { background: var(--border); }
+/* Reserve the scrollbar's column permanently: when a section opens and the
+   rail outgrows the viewport, the scrollbar appears INSIDE the reserved space
+   instead of stealing width and nudging every row 6px to the left. */
+.browse-sidebar { scrollbar-color: transparent transparent; scrollbar-gutter: stable; }
+.browse-sidebar:hover { scrollbar-color: var(--border) transparent; }
+.browse-sidebar::-webkit-scrollbar-thumb { background: transparent; }
+.browse-sidebar:hover::-webkit-scrollbar-thumb { background: var(--border); }
+
+/* ── Section headers in the rail ───────────────────────────────────── */
+.section-toggle { transition: color 160ms ease, background-color 160ms ease; }
+@media (hover: hover) and (pointer: fine) {
+  .section-toggle:hover > span:first-child { color: var(--text-primary); }
+  .section-toggle:hover svg { color: var(--text-primary) !important; }
+}
+.section-toggle:active { transform: none; }
+
+/* ── Re-tune earlier motion onto the shared curve ──────────────────── */
+.job-card { transition-timing-function: var(--ease-out-soft); transition-duration: 240ms; }
+.card-enter { animation-timing-function: var(--ease-out-soft); }
+.page-enter { animation-timing-function: var(--ease-out-soft); }
+.check-box { transition-timing-function: ease, ease, var(--ease-spring); }
+.theme-toggle, .save-btn { transition-duration: 200ms; }
+.filter-pill { transition-timing-function: var(--ease-out-soft); }
+.nav-drawer { animation-timing-function: var(--ease-out-soft); animation-duration: 0.32s; }
+.bottom-sheet { animation-timing-function: var(--ease-out-soft); animation-duration: 0.36s; }
+.mobile-detail-overlay { animation-timing-function: var(--ease-out-soft); animation-duration: 0.32s; }
+.collapsible-body { transition-timing-function: var(--ease-out-soft), ease; }
+.filter-panel { transition: max-height 320ms var(--ease-out-soft); }
+.btn, .btn-primary, .btn-ghost, .btn-outline { transition-timing-function: ease, ease, ease, ease, var(--ease-out-soft) !important; }
+
+/* Buttons and pressables: the press-down is instant, the release springs. */
+@media (hover: hover) and (pointer: fine) {
+  button:active, [role="button"]:active { transition-duration: 60ms; }
+}
+
+/* Links in the footer and body copy underline-slide instead of snapping. */
+footer a { transition: color 160ms ease, opacity 160ms ease; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROFILE PAGE — tab rail, section transitions, list rows.
+   ═══════════════════════════════════════════════════════════════════ */
+.profile-tab {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 10px 9px 12px;
+  border: none; border-radius: 8px; cursor: pointer;
+  font-family: inherit; font-size: 0.85rem; font-weight: 600;
+  text-align: left; white-space: nowrap; flex-shrink: 0;
+  background: transparent; color: var(--text-secondary);
+  transition: background-color 160ms ease, color 160ms ease, transform 160ms var(--ease-out-soft);
+}
+.profile-tab svg { transition: transform 200ms var(--ease-out-soft), color 160ms ease; flex-shrink: 0; }
+/* Active marker: a short bar that grows in from the left. */
+.profile-tab::before {
+  content: '';
+  position: absolute; left: 0; top: 50%;
+  width: 3px; height: 0; border-radius: 2px;
+  background: var(--acid);
+  transform: translateY(-50%);
+  transition: height 220ms var(--ease-out-soft);
+}
+.profile-tab.is-active { background: var(--acid-soft); color: var(--acid); font-weight: 700; }
+.profile-tab.is-active::before { height: 18px; }
+@media (hover: hover) and (pointer: fine) {
+  .profile-tab:not(.is-active):hover { background: color-mix(in srgb, var(--text-primary) 5%, transparent); color: var(--text-primary); }
+  .profile-tab:hover svg { transform: translateX(1px) scale(1.08); }
+}
+.profile-tab:active { transform: scale(0.98); }
+.profile-tab__count {
+  margin-left: auto; font-size: 0.68rem; font-weight: 700;
+  padding: 1px 7px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.profile-tab.is-active .profile-tab__count { background: var(--acid); color: var(--bg-base); }
+/* Mobile: horizontal strip, marker becomes an underline. */
+.profile-tabs--mobile .profile-tab { width: auto; padding: 8px 12px; border-radius: 8px 8px 0 0; }
+.profile-tabs--mobile .profile-tab::before { left: 10px; right: 10px; top: auto; bottom: 0; width: auto; height: 2px; transform: scaleX(0); transform-origin: left; transition: transform 220ms var(--ease-out-soft); }
+.profile-tabs--mobile .profile-tab.is-active { background: transparent; }
+.profile-tabs--mobile .profile-tab.is-active::before { height: 2px; transform: scaleX(1); }
+.profile-tabs--mobile .profile-tab__count { margin-left: 2px; }
+
+/* Section swap: keyed on the tab, so each section rises in. */
+.profile-section { animation: profileSection 240ms var(--ease-out-soft) both; }
+@keyframes profileSection {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+/* Children of a section stagger in slightly after the section. */
+.profile-section > * { animation: profileSection 320ms var(--ease-out-soft) both; }
+.profile-section > *:nth-child(2) { animation-delay: 50ms; }
+.profile-section > *:nth-child(3) { animation-delay: 100ms; }
+.profile-section > *:nth-child(n+4) { animation-delay: 140ms; }
+
+/* Saved-job rows. */
+.saved-row {
+  transition: border-color 160ms ease, box-shadow 200ms var(--ease-out-soft), transform 200ms var(--ease-out-soft), background-color 160ms ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .saved-row:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .saved-row:hover .saved-row__title { color: var(--primary); }
+}
+.saved-row__title { transition: color 150ms ease; }
+.saved-row.is-leaving { animation: savedLeave 220ms ease both; pointer-events: none; }
+@keyframes savedLeave { to { opacity: 0; transform: translateX(12px); } }
+
+/* Preference chips (email categories). */
+.pref-chip { transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms var(--ease-spring); }
+@media (hover: hover) and (pointer: fine) {
+  .pref-chip:not(.is-on):hover { border-color: var(--text-secondary); color: var(--text-primary); }
+}
+.pref-chip:active { transform: scale(0.95); }
+.pref-chip.is-on { animation: checkPop 220ms var(--ease-spring); }
+
+/* Identity stat tiles. */
+.id-stat { transition: background-color 160ms ease, border-color 160ms ease, transform 200ms var(--ease-out-soft); }
+@media (hover: hover) and (pointer: fine) {
+  a.id-stat:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-section, .profile-section > *, .saved-row.is-leaving, .pref-chip.is-on { animation: none !important; opacity: 1 !important; transform: none !important; }
+  .profile-tab::before, .profile-tab, .saved-row, .pref-chip, .id-stat { transition: none; }
 }

@@ -48,7 +48,6 @@ export const FILTER_CONTROL_STYLE: CSSProperties = {
   border: '1px solid var(--border)',
   borderRadius: 8,
   padding: '0 10px',
-  outline: 'none',
 };
 
 export type DateFilter = 'All' | 'Today' | 'This Week' | 'This Month';

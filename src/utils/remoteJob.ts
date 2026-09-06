@@ -37,19 +37,16 @@ export function getCountryLabel(country?: string | null): string | null {
 }
 
 /**
- * Location line for a remote job: "Remote · United States".
+ * Location line for a remote job: just "Remote".
  *
- * Every job in this collection is fully remote, so the country is the only
- * geographically meaningful part. Falls back to the raw Location field when
- * the country is missing or unmapped, and to a bare "Remote" when there's
- * nothing usable at all — never to "Germany".
+ * The country is deliberately NOT shown here (or anywhere on remote cards);
+ * it stays in the data for filtering only. A job carrying a real city in
+ * Location (a Germany-based remote role moved over from the main pipeline)
+ * shows that city instead.
  */
 export function getRemoteDisplayLocation(job: IJob): string {
-  const label = getCountryLabel(job.Country);
-  if (label) return `Remote · ${label}`;
-
-  const raw = String(job.Location || '').split(';')[0]?.trim();
-  if (raw) return raw;
-
-  return 'Remote';
+  const loc = String(job.Location || '').split(';')[0]?.trim() ?? '';
+  const isRemote = !loc || loc.toLowerCase() === 'remote';
+  if (isRemote) return 'Remote';
+  return loc;
 }

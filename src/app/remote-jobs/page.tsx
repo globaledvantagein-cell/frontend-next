@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import RemoteDashboard from '@/page-components/RemoteDashboard';
+import { BrowsePageSkeleton } from '@/components/jobs/JobCardSkeleton';
 
 export const metadata: Metadata = {
   title: 'Remote Jobs — Work From Anywhere | English Jobs Germany',
@@ -12,7 +13,7 @@ export const metadata: Metadata = {
 export default function RemoteJobsPage() {
   // RemoteDashboard reads ?company= / ?search= / ?id= via useSearchParams → needs Suspense.
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<BrowsePageSkeleton />}>
       <RemoteDashboard />
     </Suspense>
   );

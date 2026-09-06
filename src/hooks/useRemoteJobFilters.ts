@@ -125,6 +125,9 @@ export function useRemoteJobFilters(initialCompany?: string, initialSearch?: str
   const [hasMore,     setHasMore]     = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  // See useJobFilters — page-1 failure surfaced for a real error state.
+  const [error,       setError]       = useState<unknown>(null);
+  const [retryTick,   setRetryTick]   = useState(0);
 
   const [companyOptions, setCompanyOptions] = useState<FilterDropdownOption[]>([
     { value: 'All', label: 'All' },
@@ -186,6 +189,7 @@ export function useRemoteJobFilters(initialCompany?: string, initialSearch?: str
     abortRef.current = ctrl;
 
     setLoading(true);
+    setError(null);
     setJobs([]);
     pageRef.current = 2;
 
@@ -199,14 +203,18 @@ export function useRemoteJobFilters(initialCompany?: string, initialSearch?: str
         setHasMore(batch.length === PAGE_SIZE && batch.length < total);
       })
       .catch(err => {
-        if (err?.name !== 'AbortError') console.error('[useRemoteJobFilters] fetch error:', err);
+        if (err?.name === 'AbortError' || ctrl.signal.aborted) return;
+        console.error('[useRemoteJobFilters] fetch error:', err);
+        setError(err);
       })
       .finally(() => {
         if (!ctrl.signal.aborted) setLoading(false);
       });
 
     return () => ctrl.abort();
-  }, [committedFilters]);
+  }, [committedFilters, retryTick]);
+
+  const retry = useCallback(() => setRetryTick(t => t + 1), []);
 
   // ── Load next page ──────────────────────────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -321,6 +329,8 @@ export function useRemoteJobFilters(initialCompany?: string, initialSearch?: str
     loading,
     loadingMore,
     loadMore,
+    error,
+    retry,
     updateJob,
     companyOptions,
     categoryOptions,

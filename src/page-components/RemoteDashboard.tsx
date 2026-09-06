@@ -35,7 +35,7 @@ export default function RemoteDashboard() {
     filters, setFilters, clearFilters, hasActiveFilters, activeFilterCount,
     companyOptions, categoryOptions, facetCounts,
     jobs, totalJobs, hasMore,
-    loading, loadingMore, loadMore,
+    loading, loadingMore, loadMore, error, retry,
   } = useRemoteJobFilters(companyParam || undefined, searchParam || undefined);
 
   const isMobile = useMediaQuery('(max-width: 767px)');
@@ -79,6 +79,7 @@ export default function RemoteDashboard() {
     <JobBrowsePage
       jobs={jobs} totalJobs={totalJobs}
       loading={loading} loadingMore={loadingMore} hasMore={hasMore} loadMore={loadMore}
+      error={error} retry={retry}
       filters={filters} setFilters={setFilters} clearFilters={clearFilters}
       hasActiveFilters={hasActiveFilters} activeFilterCount={activeFilterCount}
       companyOptions={companyOptions} categoryOptions={categoryOptions}

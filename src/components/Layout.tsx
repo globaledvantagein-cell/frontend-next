@@ -17,6 +17,8 @@ import { apiGet } from '../utils/jobApi';
 import DesktopNav from './layout/DesktopNav';
 import MobileDrawer from './layout/MobileDrawer';
 import UserMenu from './layout/UserMenu';
+import RouteProgress from './RouteProgress';
+import ConnectionBanner from './ConnectionBanner';
 import { ADMIN_LINKS, PUBLIC_LINKS } from './layout/navLinks';
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -116,6 +118,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <RouteProgress />
       <nav
         className="nav-blur"
         style={{ position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid var(--border)' }}
@@ -166,12 +169,12 @@ export default function Layout({ children }: { children: ReactNode }) {
             <button
               onClick={toggle}
               aria-label="Toggle color theme"
-              className="no-touch-expand"
+              className="no-touch-expand theme-toggle"
               style={{
                 width: 34, height: 34, borderRadius: 8,
-                border: '1px solid var(--border-mid)', background: 'transparent',
+                border: '1px solid var(--border-mid, var(--border))', background: 'transparent',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--text-secondary)', transition: 'border-color 0.18s, color 0.18s',
+                color: 'var(--text-secondary)',
               }}
             >
               {/* Both icons render identically on server + client; CSS shows one
@@ -239,10 +242,18 @@ export default function Layout({ children }: { children: ReactNode }) {
         />
       )}
 
-      <main style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }} role="main">
+      {/* Keyed on the path so each route's content runs the enter animation
+          once on arrival; the previous page never lingers half-swapped. */}
+      <main
+        key={loc.pathname}
+        className="page-enter"
+        style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
+        role="main"
+      >
         {children}
       </main>
       <Footer />
+      <ConnectionBanner />
       {!hideFeedbackWidget && <FeedbackWidget />}
     </div>
   );

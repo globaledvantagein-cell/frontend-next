@@ -48,6 +48,7 @@ export default function SaveJobButton({ jobId, size = 15, style }: Props) {
       aria-label={saved ? 'Remove from saved jobs' : 'Save this job'}
       aria-pressed={saved}
       title={saved ? 'Saved' : 'Save job'}
+      className={`save-btn ${saved ? 'is-saved' : ''}`}
       style={{
         background: 'none',
         border: 'none',

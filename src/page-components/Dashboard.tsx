@@ -28,7 +28,7 @@ export default function Dashboard() {
     filters, setFilters, clearFilters, hasActiveFilters, activeFilterCount,
     companyOptions, categoryOptions, facetCounts,
     jobs, totalJobs, hasMore,
-    loading, loadingMore, loadMore,
+    loading, loadingMore, loadMore, error, retry,
   } = useJobFilters(companyParam || undefined, searchParam || undefined);
 
   const { isPremium } = useAuth();
@@ -83,6 +83,7 @@ export default function Dashboard() {
       <JobBrowsePage
         jobs={jobs} totalJobs={totalJobs}
         loading={loading} loadingMore={loadingMore} hasMore={hasMore} loadMore={loadMore}
+        error={error} retry={retry}
         filters={filters} setFilters={setFilters} clearFilters={clearFilters}
         hasActiveFilters={hasActiveFilters} activeFilterCount={activeFilterCount}
         companyOptions={companyOptions} categoryOptions={categoryOptions}

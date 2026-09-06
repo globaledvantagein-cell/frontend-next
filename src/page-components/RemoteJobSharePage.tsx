@@ -56,13 +56,19 @@ export default function RemoteJobSharePage({ jobId }: { jobId: string }) {
       {loading && <JobDetailSkeleton />}
 
       {!loading && failed && (
-        <EmptyState
-          title="This role is no longer available"
-          body="It may have been filled or removed. Browse the current remote openings instead."
-        />
+        <div className="page-fade-in">
+          <EmptyState
+            title="This role is no longer available"
+            body="It may have been filled or removed. Browse the current remote openings instead."
+          />
+        </div>
       )}
 
-      {!loading && !failed && job && <RemoteJobDetail job={job} />}
+      {!loading && !failed && job && (
+        <div className="page-fade-in">
+          <RemoteJobDetail job={job} />
+        </div>
+      )}
     </div>
   );
 }

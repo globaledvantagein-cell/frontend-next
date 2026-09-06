@@ -1,0 +1,94 @@
+
+> frontend-next@0.1.0 dev
+> next dev -p 3001
+
+▲ Next.js 16.2.10 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://10.40.0.78:3001
+- Environments: .env.local
+✓ Ready in 4.2s
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of C:\zzz\jobbb\package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * C:\zzz\jobbb\frontend-next\package-lock.json
+
+
+○ Compiling /jobs ...
+ GET /jobs 200 in 6.9s (next.js: 6.4s, application-code: 549ms)
+ GET /jobs 200 in 590ms (next.js: 157ms, application-code: 432ms)
+✓ Compiled in 164ms
+ GET /jobs 200 in 148ms (next.js: 65ms, application-code: 82ms)
+ GET /jobs 200 in 393ms (next.js: 14ms, application-code: 379ms)
+✓ Compiled in 156ms
+ GET /jobs 200 in 219ms (next.js: 110ms, application-code: 110ms)
+ GET /jobs 200 in 389ms (next.js: 11ms, application-code: 378ms)
+ GET /remote-jobs 200 in 756ms (next.js: 661ms, application-code: 95ms)
+[browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+✓ Compiled in 117ms
+ GET /remote-jobs 200 in 468ms (next.js: 86ms, application-code: 382ms)
+ GET /jobs 200 in 468ms (next.js: 270ms, application-code: 197ms)
+ GET /jobs 200 in 131ms (next.js: 80ms, application-code: 51ms)
+ GET /remote-jobs 200 in 134ms (next.js: 11ms, application-code: 123ms)
+ GET /profile 200 in 878ms (next.js: 804ms, application-code: 73ms)
+[browser] Detected `scroll-behavior: smooth` on the `<html>` element. To disable smooth scrolling during route transitions, add `data-scroll-behavior="smooth"` to your <html> element. Learn more: https://nextjs.org/docs/messages/missing-data-scroll-behavior
+ GET /today-matches 200 in 616ms (next.js: 565ms, application-code: 52ms)
+ GET /profile 200 in 390ms (next.js: 15ms, application-code: 375ms)
+[browser] Uncaught Error: Hydration failed because the server rendered HTML didn't match the client. As a result this tree will be regenerated on the client. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <RenderFromTemplateContext>
+      <ScrollAndMaybeFocusHandler cacheNode={{rsc:{...}, ...}}>
+        <InnerScrollAndFocusHandlerOld focusAndScrollRef={{scrollRef:null, ...}} cacheNode={{rsc:{...}, ...}}>
+          <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+            <LoadingBoundary name="profile/" loading={null}>
+              <HTTPAccessFallbackBoundary notFound={undefined} forbidden={undefined} unauthorized={undefined}>
+                <RedirectBoundary>
+                  <RedirectErrorBoundary router={{...}}>
+                    <InnerLayoutRouter url="/profile" tree={[...]} params={{}} cacheNode={{rsc:{...}, ...}} ...>
+                      <SegmentViewNode type="page" pagePath="profile/pa...">
+                        <SegmentTrieNode>
+                        <ProfilePage>
+                          <AuthGuard>
+                            <Profile>
+                              <Container style={{padding:"4..."}}>
+                                <div
+                                  style={{
++                                   maxWidth: "1200px"
++                                   margin: "0 auto"
++                                   padding: "40px 24px"
+-                                   color: "var(--text-secondary)"
+                                  }}
++                                 className=""
+-                                 className="min-h-screen flex items-center justify-center"
+                                >
++                                 <div className="skeleton" style={{height:200,borderRadius:12}}>
+-                                 Loading…
+                      ...
+                    ...
+          ...
+
+    at <unknown> (https://react.dev/link/hydration-mismatch)
+    at div (<anonymous>)
+    at Profile (src/page-components/Profile.tsx:101:9)
+    at ProfilePage (src\app\profile\page.tsx:9:7)
+   99 |     return (
+  100 |       <Container style={{ padding: '40px 24px' }}>
+> 101 |         <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+      |         ^
+  102 |       </Container>
+  103 |     );
+  104 |   }
+✓ Compiled in 153ms
+[?25h

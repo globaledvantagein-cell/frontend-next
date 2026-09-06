@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "@/components/Providers";
 import Layout from "@/components/Layout";
 import JsonLd from "@/components/seo/JsonLd";
+import { lightVars, darkVars } from "@/theme/themes";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://englishjobsgermany.com";
 
@@ -34,6 +35,12 @@ const websiteJsonLd = {
   url: SITE_URL,
 };
 
+// Runs before first paint. Every colour on the site is a CSS variable that
+// ThemeProvider sets from JS; without this the server HTML paints with the
+// variables undefined (white page, black text, no borders) and then snaps to
+// the real palette after hydration — a visible flash on every fresh tab.
+const THEME_BOOT_SCRIPT = `(function(){try{var l=${JSON.stringify(lightVars)},d=${JSON.stringify(darkVars)};var m=null;try{m=localStorage.getItem('ej-theme')}catch(e){}if(m!=='dark'&&m!=='light'){m=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}var v=m==='dark'?d:l,r=document.documentElement;for(var k in v){r.style.setProperty(k,v[k])}r.setAttribute('data-theme',m)}catch(e){}})();`;
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -48,7 +55,14 @@ export const metadata: Metadata = {
     images: ["/logo.jpeg"],
   },
   twitter: { card: "summary_large_image" },
-  icons: { icon: "/favicon.ico" },
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({
@@ -56,6 +70,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body suppressHydrationWarning>
         <JsonLd data={organizationJsonLd} />
         <JsonLd data={websiteJsonLd} />

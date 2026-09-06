@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
 import { Link, useNavigate } from '@/compat/router';
 import type { IJob, ICompany } from '../types';
 import { HOME_CATEGORIES, categorySlug } from '../utils/categorize';
@@ -135,6 +135,69 @@ interface HomeProps {
   totalJobCount?: number;
 }
 
+/**
+ * Scroll-driven motion for the landing page (GSAP + ScrollTrigger, loaded
+ * lazily so it never blocks first paint).
+ *
+ *  - `[data-reveal]`          → fades/rises the element when it scrolls in.
+ *  - `[data-reveal="stagger"]` → same, but its children enter one after another.
+ *  - `[data-count="25,000+"]` → the number counts up from 0 on load.
+ *
+ * Elements already inside the viewport at mount are left alone: hiding them
+ * after the server HTML has painted would flash. The hero keeps its own CSS
+ * rise-in for the same reason — it is visible before hydration.
+ */
+function useHomeMotion(rootRef: React.RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    let cancelled = false;
+    let ctx: { revert: () => void } | null = null;
+
+    (async () => {
+      const [{ gsap }, { ScrollTrigger }] = await Promise.all([
+        import('gsap'),
+        import('gsap/ScrollTrigger'),
+      ]);
+      if (cancelled) return;
+      gsap.registerPlugin(ScrollTrigger);
+
+      ctx = gsap.context(() => {
+        const fold = window.innerHeight * 0.92;
+
+        root.querySelectorAll<HTMLElement>('[data-reveal]').forEach(el => {
+          if (el.getBoundingClientRect().top < fold) return; // already on screen
+          const targets = el.dataset.reveal === 'stagger' ? Array.from(el.children) : [el];
+          gsap.set(targets, { opacity: 0, y: 22 });
+          gsap.to(targets, {
+            opacity: 1, y: 0,
+            duration: 0.75, ease: 'power3.out',
+            stagger: el.dataset.reveal === 'stagger' ? 0.07 : 0,
+            scrollTrigger: { trigger: el, start: 'top 86%', once: true },
+            onComplete: () => gsap.set(targets, { clearProps: 'transform' }),
+          });
+        });
+
+        root.querySelectorAll<HTMLElement>('[data-count]').forEach(el => {
+          const m = /^([\d,]+)(.*)$/.exec(el.dataset.count || '');
+          if (!m) return;
+          const target = Number(m[1].replace(/,/g, ''));
+          const suffix = m[2];
+          const state = { v: 0 };
+          gsap.to(state, {
+            v: target, duration: 1.5, ease: 'power2.out', delay: 0.3,
+            onUpdate: () => { el.textContent = Math.round(state.v).toLocaleString('en-US') + suffix; },
+          });
+        });
+      }, root);
+    })();
+
+    return () => { cancelled = true; ctx?.revert(); };
+  }, [rootRef]);
+}
+
 export default function Home({ initialJobs = [], initialCompanies = [] }: HomeProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -142,6 +205,8 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
   // Cohort demand test: the CTA never leads to a real cohort — the modal
   // always says "full" and collects waitlist signups.
   const [cohortModalOpen, setCohortModalOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useHomeMotion(rootRef);
 
   const jobs = initialJobs.slice(0, 9);
   const trustCompanies = initialCompanies.slice(0, 12);
@@ -156,11 +221,30 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
   };
 
   return (
-    <div style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', lineHeight: 1.5, overflowX: 'hidden' }}>
+    <div ref={rootRef} style={{ background: 'var(--bg-base)', color: 'var(--text-primary)', lineHeight: 1.5, overflowX: 'hidden' }}>
       {/* Responsive grids + hover states — inline styles can't express these. */}
       <style>{`
         @keyframes lpRiseIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
         .lp-hero { animation: lpRiseIn 0.6s ease both; }
+        /* The hero's children cascade in after the section itself. */
+        .lp-hero > div > * { animation: lpRiseIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+        .lp-hero > div > *:nth-child(1) { animation-delay: 0.05s; }
+        .lp-hero > div > *:nth-child(2) { animation-delay: 0.12s; }
+        .lp-hero > div > *:nth-child(3) { animation-delay: 0.2s; }
+        .lp-hero > div > *:nth-child(4) { animation-delay: 0.28s; }
+        .lp-hero > div > *:nth-child(5) { animation-delay: 0.36s; }
+        /* Headlines never leave a one-word orphan on the last line. */
+        .lp-balance { text-wrap: balance; }
+        /* Job cards are flex columns so the meta line sits on the same
+           baseline in every card of a row, regardless of tag count. */
+        .lp-job-card { display: flex; flex-direction: column; }
+        .lp-job-card > .lp-job-meta { margin-top: auto; padding-top: 14px; }
+        .lp-search-form input:focus { box-shadow: none !important; }
+        .lp-search-form:focus-within { border-color: var(--primary) !important; box-shadow: 0 0 0 4px var(--primary-soft) !important; }
+        .lp-search-form { transition: border-color 0.18s ease, box-shadow 0.18s ease; }
+        .lp-primary-btn { transition: background 0.15s ease, transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease !important; }
+        .lp-primary-btn:active { transform: scale(0.97); }
+        .lp-stat-cell strong { font-variant-numeric: tabular-nums; }
         .lp-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
         .lp-jobs-grid  { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         .lp-steps-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
@@ -185,10 +269,13 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
           .lp-search-form input, .lp-search-form select { height: 54px !important; border-left: none !important; border-bottom: 1px solid var(--border); }
           .lp-search-form button { margin: 8px !important; height: 48px !important; }
         }
-        .lp-card { transition: transform 0.15s ease, border-color 0.15s ease; }
+        .lp-card { transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), border-color 0.18s ease, box-shadow 0.18s ease; }
+        .lp-card h3 { transition: color 0.15s ease; }
         @media (hover: hover) and (pointer: fine) {
-          .lp-card:hover { transform: translateY(-3px); border-color: var(--primary) !important; }
-          .lp-primary-btn:hover { background: var(--primary-hover) !important; }
+          .lp-card:hover { transform: translateY(-3px); border-color: var(--primary) !important; box-shadow: 0 10px 28px rgba(0,0,0,0.08); }
+          [data-theme='dark'] .lp-card:hover { box-shadow: 0 10px 28px rgba(0,0,0,0.4); }
+          .lp-card:hover h3 { color: var(--primary); }
+          .lp-primary-btn:hover { background: var(--primary-hover) !important; transform: translateY(-1px); box-shadow: 0 6px 18px color-mix(in srgb, var(--primary) 35%, transparent); }
           .lp-outline-btn:hover { border-color: var(--border-strong) !important; }
           .lp-cta-btn:hover { opacity: 0.88; }
           .lp-popular-link:hover { text-decoration: underline; }
@@ -207,7 +294,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
               For job seekers who don&rsquo;t speak German
             </div>
 
-            <h1 style={{
+            <h1 className="lp-balance" style={{
               maxWidth: 880, margin: '0 auto', fontSize: 'clamp(42px, 6.4vw, 76px)',
               lineHeight: 1.0, letterSpacing: '-0.04em', fontWeight: 800,
             }}>
@@ -286,7 +373,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
                   padding: '26px 16px', textAlign: 'center',
                   borderRight: i === STATS.length - 1 ? 'none' : '1px solid var(--border)',
                 }}>
-                  <strong style={{ display: 'block', fontSize: 25, letterSpacing: '-0.03em', fontWeight: 800 }}>{s.n}</strong>
+                  <strong data-count={s.n} style={{ display: 'block', fontSize: 25, letterSpacing: '-0.03em', fontWeight: 800 }}>{s.n}</strong>
                   <span style={{ marginTop: 5, display: 'block', color: 'var(--text-secondary)', fontSize: 13 }}>{s.label}</span>
                 </div>
               ))}
@@ -297,7 +384,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
         {/* ── TRUST LOGOS (real companies from the directory) ───────────────── */}
         {trustCompanies.length > 0 && (
           <section style={{ padding: `40px ${SECTION_X}` }}>
-            <div style={{ maxWidth: 1120, margin: '0 auto' }}>
+            <div data-reveal style={{ maxWidth: 1120, margin: '0 auto' }}>
               <p style={{
                 textAlign: 'center', fontSize: 12, fontWeight: 750, letterSpacing: '0.1em',
                 textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 22,
@@ -338,10 +425,10 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
         {/* ── TRENDING ROLES (real jobs, crawlable links) ───────────────────── */}
         <section style={{ padding: `68px ${SECTION_X}`, background: 'var(--bg-surface-2)' }}>
           <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 30, flexWrap: 'wrap' }}>
+            <div data-reveal style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, marginBottom: 30, flexWrap: 'wrap' }}>
               <div>
                 <span style={eyebrowStyle}>Fresh today</span>
-                <h2 style={{ marginTop: 8, fontSize: 'clamp(28px, 3.4vw, 38px)', letterSpacing: '-0.04em', fontWeight: 800 }}>
+                <h2 className="lp-balance" style={{ marginTop: 8, fontSize: 'clamp(28px, 3.4vw, 38px)', letterSpacing: '-0.04em', fontWeight: 800 }}>
                   Trending roles right now
                 </h2>
               </div>
@@ -354,7 +441,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
               </Link>
             </div>
 
-            <div className="lp-jobs-grid">
+            <div className="lp-jobs-grid" data-reveal="stagger">
               {jobs.map(job => {
                 const tags = jobTags(job);
                 const meta = jobMetaLine(job);
@@ -362,9 +449,9 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
                   <Link
                     key={job._id}
                     to={`/jobs/${job._id}`}
-                    className="lp-card"
+                    className="lp-card lp-job-card"
                     style={{
-                      display: 'block', padding: 22, background: 'var(--bg-surface)',
+                      padding: 22, background: 'var(--bg-surface)',
                       border: '1px solid var(--border)', borderRadius: 15, textDecoration: 'none', color: 'inherit',
                     }}
                   >
@@ -398,7 +485,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
                         ))}
                       </div>
                     )}
-                    {meta && <p style={{ margin: '14px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>{meta}</p>}
+                    {meta && <p className="lp-job-meta" style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>{meta}</p>}
                   </Link>
                 );
               })}
@@ -409,13 +496,13 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
         {/* ── HOW IT WORKS ──────────────────────────────────────────────────── */}
         <section style={{ padding: `68px ${SECTION_X}` }}>
           <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 44px' }}>
+            <div data-reveal style={{ textAlign: 'center', maxWidth: 680, margin: '0 auto 44px' }}>
               <span style={eyebrowStyle}>How it works</span>
-              <h2 style={{ marginTop: 8, fontSize: 'clamp(30px, 3.6vw, 42px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
+              <h2 className="lp-balance" style={{ marginTop: 8, fontSize: 'clamp(30px, 3.6vw, 42px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
                 Three steps to your next role
               </h2>
             </div>
-            <div className="lp-steps-grid">
+            <div className="lp-steps-grid" data-reveal="stagger">
               {STEPS.map(st => (
                 <div key={st.n} style={{ padding: '30px 26px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 16 }}>
                   <div style={{
@@ -435,13 +522,13 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
         {/* ── WHY US (inverted ink band) ────────────────────────────────────── */}
         <section style={{ padding: `60px ${SECTION_X}`, background: 'var(--ink)', color: 'var(--paper)' }}>
           <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto 40px' }}>
+            <div data-reveal style={{ textAlign: 'center', maxWidth: 760, margin: '0 auto 40px' }}>
               <span style={eyebrowStyle}>Why us</span>
-              <h2 style={{ marginTop: 8, fontSize: 'clamp(28px, 3.4vw, 38px)', letterSpacing: '-0.04em', fontWeight: 800 }}>
+              <h2 className="lp-balance" style={{ marginTop: 8, fontSize: 'clamp(28px, 3.4vw, 38px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
                 Built differently from a general job board
               </h2>
             </div>
-            <div className="lp-why-grid" style={{ borderTop: '1px solid color-mix(in srgb, var(--paper) 16%, transparent)' }}>
+            <div className="lp-why-grid" data-reveal="stagger" style={{ borderTop: '1px solid color-mix(in srgb, var(--paper) 16%, transparent)' }}>
               {WHY_US.map((w, i) => (
                 <div key={w.title} style={{
                   padding: '26px 20px 0',
@@ -457,7 +544,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
 
         {/* ── CAREER COACHING ───────────────────────────────────────────────── */}
         <section style={{ padding: `68px ${SECTION_X}`, background: 'var(--primary-soft)' }}>
-          <div className="lp-coach-grid" style={{ maxWidth: 1120, margin: '0 auto' }}>
+          <div className="lp-coach-grid" data-reveal="stagger" style={{ maxWidth: 1120, margin: '0 auto' }}>
             <div>
               <div style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8, marginBottom: 18, padding: '7px 13px',
@@ -466,7 +553,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
                 <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)' }} />
                 New · Career coaching
               </div>
-              <h2 style={{ fontSize: 'clamp(28px, 3.6vw, 40px)', letterSpacing: '-0.04em', lineHeight: 1.08, fontWeight: 800, margin: 0 }}>
+              <h2 className="lp-balance" style={{ fontSize: 'clamp(28px, 3.6vw, 40px)', letterSpacing: '-0.04em', lineHeight: 1.08, fontWeight: 800, margin: 0 }}>
                 Get hired faster with cohort-based coaching
               </h2>
               <p style={{ marginTop: 14, color: 'var(--text-secondary)', fontSize: 16, maxWidth: 480 }}>
@@ -513,9 +600,9 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
         {/* ── BROWSE BY CATEGORY ────────────────────────────────────────────── */}
         <section style={{ padding: `68px ${SECTION_X}` }}>
           <div style={{ maxWidth: 1120, margin: '0 auto' }}>
-            <div style={{ textAlign: 'center', maxWidth: 700, margin: '0 auto 30px' }}>
+            <div data-reveal style={{ textAlign: 'center', maxWidth: 700, margin: '0 auto 30px' }}>
               <span style={eyebrowStyle}>Browse by category</span>
-              <h2 style={{ marginTop: 8, fontSize: 'clamp(30px, 3.6vw, 42px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
+              <h2 className="lp-balance" style={{ marginTop: 8, fontSize: 'clamp(30px, 3.6vw, 42px)', letterSpacing: '-0.04em', lineHeight: 1.1, fontWeight: 800 }}>
                 Explore opportunities by field
               </h2>
               <p style={{ marginTop: 12, color: 'var(--text-secondary)' }}>
@@ -523,7 +610,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
               </p>
             </div>
 
-            <div className="lp-cats-grid">
+            <div className="lp-cats-grid" data-reveal="stagger">
               {CATEGORIES.map(c => (
                 <Link
                   key={c.title}
@@ -544,7 +631,7 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
 
         {/* ── CTA BAND (inverted ink card) ──────────────────────────────────── */}
         <section style={{ padding: `24px ${SECTION_X} 80px` }}>
-          <div style={{
+          <div data-reveal style={{
             maxWidth: 1120, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             gap: 28, flexWrap: 'wrap', padding: 'clamp(26px, 4vw, 38px) clamp(24px, 4vw, 40px)', borderRadius: 22,
             background: 'var(--ink)', color: 'var(--paper)',

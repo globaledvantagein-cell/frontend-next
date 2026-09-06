@@ -56,6 +56,13 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
   const [hasMore,     setHasMore]     = useState(false);
   const [loading,     setLoading]     = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  // The thrown error from the page-1 fetch (null when healthy). Surfaced so the
+  // page can show a real "server unreachable / request failed" state with a
+  // retry instead of an empty "no jobs match" — which was a lie when the
+  // backend was simply down.
+  const [error,       setError]       = useState<unknown>(null);
+  // Bumping this re-runs the page-1 effect with the same filters.
+  const [retryTick,   setRetryTick]   = useState(0);
 
   const [companyOptions, setCompanyOptions] = useState<FilterDropdownOption[]>([
     { value: 'All', label: 'All' },
@@ -137,6 +144,7 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
     abortRef.current = ctrl;
 
     setLoading(true);
+    setError(null);
     setJobs([]);
     pageRef.current = 2;
 
@@ -155,14 +163,18 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
         setHasMore(batch.length === PAGE_SIZE && batch.length < total);
       })
       .catch(err => {
-        if (err?.name !== 'AbortError') console.error('[useJobFilters] fetch error:', err);
+        if (err?.name === 'AbortError' || ctrl.signal.aborted) return;
+        console.error('[useJobFilters] fetch error:', err);
+        setError(err);
       })
       .finally(() => {
         if (!ctrl.signal.aborted) setLoading(false);
       });
 
     return () => ctrl.abort();
-  }, [committedFilters]);
+  }, [committedFilters, retryTick]);
+
+  const retry = useCallback(() => setRetryTick(t => t + 1), []);
 
   // ── Load next page ──────────────────────────────────────────────────────
   const loadMore = useCallback(async () => {
@@ -284,6 +296,8 @@ export function useJobFilters(initialCompany?: string, initialSearch?: string) {
     loading,
     loadingMore,
     loadMore,
+    error,
+    retry,
     updateJob,
     companyOptions,
     categoryOptions,

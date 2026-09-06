@@ -179,8 +179,7 @@ export default function FilterDropdown({
               style={{
                 width: '100%', height: 40, fontSize: '0.9rem',
                 background: 'var(--bg-surface-2)', border: '1px solid var(--border)',
-                borderRadius: 8, padding: '0 12px', color: 'var(--text-secondary)',
-                outline: 'none', fontFamily: 'inherit',
+                borderRadius: 8, padding: '0 12px', color: 'var(--text-secondary)', fontFamily: 'inherit',
               }}
             />
           </div>
@@ -235,8 +234,7 @@ export default function FilterDropdown({
             style={{
               width: '100%', height: 28, fontSize: '0.75rem',
               background: 'var(--bg-surface)', border: '1px solid var(--border)',
-              borderRadius: 6, padding: '0 8px', color: 'var(--text-secondary)',
-              outline: 'none', fontFamily: 'inherit',
+              borderRadius: 6, padding: '0 8px', color: 'var(--text-secondary)', fontFamily: 'inherit',
             }}
           />
         </div>
@@ -279,8 +277,7 @@ export default function FilterDropdown({
             color: active ? 'var(--acid)' : 'var(--text-secondary)',
             background: active ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
             border: `1.5px solid ${active ? 'var(--acid)' : 'var(--border)'}`,
-            paddingLeft: 12, paddingRight: 28,
-            outline: 'none', cursor: 'pointer',
+            paddingLeft: 12, paddingRight: 28, cursor: 'pointer',
             display: 'flex', alignItems: 'center',
             width: '100%', textAlign: 'left', position: 'relative', fontFamily: 'inherit',
             fontWeight: active ? 600 : 400,

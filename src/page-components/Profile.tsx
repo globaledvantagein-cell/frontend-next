@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react';
 import { Link, useNavigate } from '@/compat/router';
-import { Bookmark, Check, Clock, SlidersHorizontal, User as UserIcon, LogOut, Crown } from 'lucide-react';
+import { Bookmark, Check, Clock, SlidersHorizontal, User as UserIcon, LogOut, Crown, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSavedJobs } from '../context/SavedJobsContext';
 import { useMediaQuery } from '../hooks/useMediaQuery';
-import { Button, Container, Badge, Alert } from '../components/ui';
+import { Button, Container, Badge, Alert, EmptyState } from '../components/ui';
+import { ErrorState, classifyError } from '../components/ui/ErrorState';
+import { JobCardSkeleton } from '../components/jobs/JobCardSkeleton';
 import { UsageBar, PromoCodeForm } from '../components/UpgradeModal';
 import { BRAND } from '../theme/brand';
 import { apiGet, fetchSubscriptionHistory } from '../utils/jobApi';
@@ -16,6 +18,7 @@ import IdentityCard from '../components/profile/IdentityCard';
 import EmailPreferences from '../components/profile/EmailPreferences';
 import JobPreferencesForm from '../components/profile/JobPreferencesForm';
 import ParsedResumeProfile from '../components/profile/ParsedResumeProfile';
+import DangerZone from '../components/profile/DangerZone';
 import type { ProfileData } from '../components/profile/profileTypes';
 
 // 8px spacing rhythm. The active section's content stacks here; the child
@@ -23,46 +26,103 @@ import type { ProfileData } from '../components/profile/profileTypes';
 const CONTENT_STACK: CSSProperties = { display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 };
 
 type TabId = 'profile' | 'preferences' | 'subscription' | 'saved' | 'history';
-const TABS: { id: TabId; label: string; icon: ReactNode }[] = [
-  { id: 'profile',      label: 'Profile',             icon: <UserIcon size={15} /> },
-  { id: 'preferences',  label: 'Preferences',         icon: <SlidersHorizontal size={15} /> },
-  { id: 'subscription', label: 'Subscription',        icon: <Crown size={15} /> },
-  { id: 'saved',        label: 'Saved Jobs',          icon: <Bookmark size={15} /> },
-  { id: 'history',      label: 'Application History',  icon: <Clock size={15} /> },
+interface TabDef { id: TabId; label: string; icon: ReactNode; title: string; blurb: string }
+const TABS: TabDef[] = [
+  { id: 'profile',      label: 'Profile',      icon: <UserIcon size={15} />,          title: 'Your profile',        blurb: 'Who you are to employers: your account and the resume that powers matching.' },
+  { id: 'preferences',  label: 'Preferences',  icon: <SlidersHorizontal size={15} />, title: 'Preferences',         blurb: 'What lands in your inbox and how roles are scored for you.' },
+  { id: 'subscription', label: 'Subscription', icon: <Crown size={15} />,             title: 'Subscription',        blurb: 'Your plan, weekly usage, and purchase history.' },
+  { id: 'saved',        label: 'Saved jobs',   icon: <Bookmark size={15} />,          title: 'Saved jobs',          blurb: 'Roles you bookmarked to come back to.' },
+  { id: 'history',      label: 'Applications', icon: <Clock size={15} />,             title: 'Application history', blurb: 'Every role you clicked Apply on, in one place.' },
 ];
+const TAB_IDS = new Set<string>(TABS.map(t => t.id));
 
 /**
- * Sidebar / tab-bar navigation item. Active state is conveyed by background +
- * text weight; hover changes colour only. NO transform on hover — press
- * feedback (scale 0.97) comes from the global :active rule in index.css.
+ * The active tab lives in the URL hash so refresh, back, and shared links land
+ * on the same section. Read through useSyncExternalStore: the server (no hash)
+ * and the first client render both yield 'profile', so there is no hydration
+ * mismatch, and the real hash takes over in the same commit.
+ */
+function readTabFromHash(): TabId {
+  const h = window.location.hash.replace('#', '');
+  return TAB_IDS.has(h) ? (h as TabId) : 'profile';
+}
+function subscribeHash(cb: () => void) {
+  window.addEventListener('hashchange', cb);
+  window.addEventListener('ejg-tabchange', cb);
+  return () => {
+    window.removeEventListener('hashchange', cb);
+    window.removeEventListener('ejg-tabchange', cb);
+  };
+}
+function useHashTab(): [TabId, (next: TabId) => void] {
+  const tab = useSyncExternalStore(subscribeHash, readTabFromHash, () => 'profile' as TabId);
+  const setTab = useCallback((next: TabId) => {
+    if (window.location.hash !== `#${next}`) window.history.replaceState(null, '', `#${next}`);
+    window.dispatchEvent(new Event('ejg-tabchange'));
+  }, []);
+  return [tab, setTab];
+}
+
+/**
+ * Sidebar / tab-bar navigation item. Styling lives in .profile-tab (globals.css):
+ * a marker bar grows in for the active item, icons nudge on hover, and the
+ * optional count pill shows list sizes without opening the tab.
  */
 function TabButton({
-  tab, active, mobile, onClick,
-}: { tab: { id: TabId; label: string; icon: ReactNode }; active: boolean; mobile: boolean; onClick: () => void }) {
+  tab, active, mobile, count, onClick,
+}: { tab: TabDef; active: boolean; mobile: boolean; count?: number; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
-      style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: mobile ? '8px 12px' : '9px 10px',
-        width: mobile ? 'auto' : '100%',
-        flexShrink: 0,
-        borderRadius: 8, border: 'none', cursor: 'pointer',
-        fontFamily: 'inherit', fontSize: '0.85rem',
-        fontWeight: active ? 700 : 600,
-        textAlign: 'left', whiteSpace: 'nowrap',
-        background: active ? 'var(--acid-soft)' : 'transparent',
-        color: active ? 'var(--acid)' : 'var(--text-secondary)',
-        transition: 'background-color 0.16s ease, color 0.16s ease',
-      }}
-      onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--bg-surface-2)'; e.currentTarget.style.color = 'var(--text-primary)'; } }}
-      onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--text-secondary)'; } }}
+      className={`profile-tab ${active ? 'is-active' : ''}`}
+      style={mobile ? { width: 'auto' } : undefined}
     >
       {tab.icon}
       {tab.label}
+      {count != null && count > 0 && <span className="profile-tab__count">{count}</span>}
     </button>
+  );
+}
+
+/** Title + one-line description above each section, so a tab never opens onto a bare card. */
+function SectionHeader({ tab }: { tab: TabDef }) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <h1 style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--text-primary)', margin: 0, lineHeight: 1.2 }}>{tab.title}</h1>
+      <p style={{ fontSize: '0.86rem', color: 'var(--text-secondary)', margin: '4px 0 0' }}>{tab.blurb}</p>
+    </div>
+  );
+}
+
+/** Structured placeholder that mirrors the desktop shell (rail + content) so the swap doesn't reflow. */
+function ProfileSkeleton({ mobile }: { mobile: boolean }) {
+  const line = (w: string | number, h = 12) => <div className="skeleton" style={{ height: h, width: w, borderRadius: 5 }} />;
+  const content = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: 1, minWidth: 0 }}>
+      {line('38%', 24)}{line('60%', 12)}
+      <div className="skeleton-card" style={{ borderRadius: 12, padding: 16, gap: 16, alignItems: 'center' }}>
+        <div className="skeleton" style={{ width: 64, height: 64, borderRadius: '50%' }} />
+        <div className="skeleton-card__lines">{line('40%', 16)}{line('55%', 11)}{line('30%', 11)}</div>
+      </div>
+      <div className="skeleton-card" style={{ borderRadius: 12, padding: 16, flexDirection: 'column', gap: 10 }}>
+        {line('30%', 14)}{line('90%', 11)}{line('75%', 11)}{line('60%', 11)}
+      </div>
+    </div>
+  );
+  if (mobile) return <div style={{ padding: '16px clamp(14px, 4vw, 20px) 40px' }}>{content}</div>;
+  return (
+    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '20px clamp(16px, 3vw, 32px) 48px', display: 'flex', gap: 24 }} role="status" aria-label="Loading profile">
+      <div style={{ width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+          <div className="skeleton" style={{ width: 36, height: 36, borderRadius: '50%' }} />
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>{line('70%', 12)}{line('90%', 10)}</div>
+        </div>
+        {[90, 110, 120, 100, 130].map((w, i) => <div key={i} style={{ padding: '9px 12px' }}>{line(w, 12)}</div>)}
+      </div>
+      {content}
+    </div>
   );
 }
 
@@ -73,10 +133,13 @@ function TabButton({
 export default function Profile() {
   const { user, logout, isAdmin, token, isLoading: authLoading } = useAuth();
   const isMobile = !useMediaQuery('(min-width: 768px)');
-  const [tab, setTab] = useState<TabId>('profile');
+  const [tab, setTab] = useHashTab();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [meError, setMeError] = useState<unknown>(null);
+  const [retryTick, setRetryTick] = useState(0);
+  const { savedIds } = useSavedJobs();
 
   useEffect(() => { document.title = `Profile · ${BRAND.appName}`; }, []);
 
@@ -90,18 +153,13 @@ export default function Profile() {
       .then(setProfile)
       .catch(err => {
         console.error('[Profile] /me fetch failed:', err);
-        setLoadError('Could not load your latest preferences. Please refresh.');
+        setMeError(err);
+        setLoadError('Could not load your latest preferences.');
       })
       .finally(() => setLoading(false));
-  }, [token, authLoading]);
+  }, [token, authLoading, retryTick]);
 
-  if (authLoading || loading) {
-    return (
-      <Container style={{ padding: '40px 24px' }}>
-        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
-      </Container>
-    );
-  }
+  if (authLoading || loading) return <ProfileSkeleton mobile={isMobile} />;
 
   if (!user) {
     return (
@@ -128,16 +186,28 @@ export default function Profile() {
   // cognitive load (and the DOM) to one section at a time. Keyed so a tab
   // switch re-triggers the opacity fade (fadeIn keyframe = opacity only, GPU),
   // preventing the content from teleporting.
+  const activeTab = TABS.find(t => t.id === tab) ?? TABS[0];
+  // /me failed and we have nothing richer than the auth user: offer a retry
+  // on the sections that depend on it instead of silently showing stale data.
+  const meFailure = meError && !profile ? (() => {
+    const { kind, hint } = classifyError(meError);
+    return <ErrorState kind={kind} title={kind === 'unreachable' ? 'Can\u2019t reach your account data' : 'Your profile didn\u2019t load'} hint={hint} onRetry={() => { setLoading(true); setMeError(null); setRetryTick(t => t + 1); }} />;
+  })() : null;
+
   const activeContent = (
-    <div key={tab} style={{ animation: 'fadeIn 0.16s ease-out' }}>
+    <div key={tab} className="profile-section" style={CONTENT_STACK}>
+      <SectionHeader tab={activeTab} />
       {tab === 'profile' && (
         <div style={CONTENT_STACK}>
-          <IdentityCard data={display} isAdmin={isAdmin} />
+          <IdentityCard data={display} isAdmin={isAdmin} savedCount={savedIds.size} />
+          {meFailure}
           <ParsedResumeProfile />
+          <DangerZone />
         </div>
       )}
       {tab === 'preferences' && (
         <div style={CONTENT_STACK}>
+          {meFailure}
           {profile && <EmailPreferences profile={profile} loadError={loadError} onProfileUpdated={setProfile} />}
           <JobPreferencesForm />
         </div>
@@ -145,14 +215,12 @@ export default function Profile() {
       {tab === 'subscription' && <SubscriptionSection />}
       {tab === 'saved' && <SavedJobsList />}
       {tab === 'history' && (
-        <div style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border)', borderRadius: 12, padding: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <Clock size={15} style={{ color: 'var(--text-muted)' }} />
-            <h3 style={{ fontSize: '0.92rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Application history</h3>
-            <Badge variant="neutral" style={{ fontSize: '0.62rem' }}>SOON</Badge>
-          </div>
-          <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>Track which roles you have applied to.</p>
-        </div>
+        <EmptyState
+          icon={<Clock size={28} />}
+          title="Application tracking is coming soon"
+          body="Roles you click Apply on will be listed here with the date, so you can follow up at the right time. Until then, the Applied badge on job cards marks them for you."
+          action={<Link to="/applied" style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--primary)', textDecoration: 'none' }}>See jobs you have applied to \u2192</Link>}
+        />
       )}
     </div>
   );
@@ -203,10 +271,10 @@ export default function Profile() {
           {signOutLink}
         </div>
         <div
-          className="thin-scroll"
-          style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 4, marginBottom: 16, borderBottom: '1px solid var(--border)' }}
+          className="thin-scroll profile-tabs--mobile"
+          style={{ display: 'flex', gap: 2, overflowX: 'auto', marginBottom: 16, borderBottom: '1px solid var(--border)', scrollbarWidth: 'none' }}
         >
-          {TABS.map(t => <TabButton key={t.id} tab={t} active={tab === t.id} mobile onClick={() => setTab(t.id)} />)}
+          {TABS.map(t => <TabButton key={t.id} tab={t} active={tab === t.id} mobile count={t.id === 'saved' ? savedIds.size : undefined} onClick={() => setTab(t.id)} />)}
         </div>
         {activeContent}
       </div>
@@ -228,7 +296,7 @@ export default function Profile() {
           {identityMini}
         </div>
         <nav style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {TABS.map(t => <TabButton key={t.id} tab={t} active={tab === t.id} mobile={false} onClick={() => setTab(t.id)} />)}
+          {TABS.map(t => <TabButton key={t.id} tab={t} active={tab === t.id} mobile={false} count={t.id === 'saved' ? savedIds.size : undefined} onClick={() => setTab(t.id)} />)}
         </nav>
         <div style={{ flex: 1 }} />
         <div style={{ borderTop: '1px solid var(--border)', paddingTop: 6 }}>
@@ -260,70 +328,99 @@ function SavedJobsList() {
   const { savedVersion, toggleSave } = useSavedJobs();
   const [entries, setEntries] = useState<SavedEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const [retryTick, setRetryTick] = useState(0);
+  const [leaving, setLeaving] = useState<Set<string>>(() => new Set());
 
   // Refetch whenever a bookmark is toggled anywhere in the app.
   useEffect(() => {
     apiGet<{ jobs: SavedEntry[] }>('/api/jobs/saved')
       .then(data => setEntries(data?.jobs || []))
-      .catch(() => setEntries([]))
+      .catch(err => setError(err))
       .finally(() => setLoading(false));
-  }, [savedVersion]);
+  }, [savedVersion, retryTick]);
+
+  // Slide the row out before the refetch removes it, so the list never jumps.
+  const remove = (jobId: string) => {
+    setLeaving(prev => new Set(prev).add(jobId));
+    setTimeout(() => { void toggleSave(jobId); }, 200);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: 'grid', gap: 8 }} role="status" aria-label="Loading saved jobs">
+        {[0, 1, 2].map(i => <JobCardSkeleton key={i} badges={i === 1 ? 1 : 2} />)}
+      </div>
+    );
+  }
+
+  if (error) {
+    const { kind, hint } = classifyError(error);
+    return <ErrorState kind={kind} title={kind === 'unreachable' ? 'Can\u2019t reach your saved jobs' : 'Saved jobs didn\u2019t load'} hint={hint} onRetry={() => { setLoading(true); setError(null); setRetryTick(t => t + 1); }} />;
+  }
+
+  if (entries.length === 0) {
+    return (
+      <EmptyState
+        icon={<Bookmark size={28} />}
+        title="Nothing saved yet"
+        body="Tap the bookmark on any role to keep it here for later."
+        action={<Button as="a" href="/jobs" size="sm"><Search size={14} /> Browse jobs</Button>}
+      />
+    );
+  }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <Bookmark size={15} style={{ color: 'var(--text-muted)' }} />
-        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>Saved jobs</h3>
-        {!loading && entries.length > 0 && <Badge variant="neutral">{entries.length}</Badge>}
-      </div>
-
-      {loading ? (
-        <div className="skeleton" style={{ height: 70, borderRadius: 12 }} />
-      ) : entries.length === 0 ? (
-        <div style={{ background: 'var(--bg-surface)', border: '1px dashed var(--border)', borderRadius: 12, padding: 18 }}>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            No saved jobs yet. Tap the bookmark icon on any role to keep it here.
-          </p>
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 8 }}>
-          {entries.map(entry => (
-            <div
-              key={entry.jobId}
-              style={{
-                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10,
-                background: 'var(--bg-surface)', border: '1px solid var(--border)',
-                borderRadius: 12, padding: '12px 14px',
-              }}
+    <div style={{ display: 'grid', gap: 8 }}>
+      {entries.map((entry, i) => (
+        <div
+          key={entry.jobId}
+          className={`saved-row card-enter ${leaving.has(entry.jobId) ? 'is-leaving' : ''}`}
+          style={{
+            ['--i' as string]: i,
+            display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10,
+            background: 'var(--bg-surface)', border: '1px solid var(--border)',
+            borderRadius: 12, padding: '12px 14px',
+            opacity: entry.isActive ? 1 : 0.7,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <a
+              href={`/jobs/${entry.jobId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="saved-row__title"
+              style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: 'none', wordBreak: 'break-word' }}
             >
-              <div style={{ minWidth: 0 }}>
-                <Link
-                  to={`/jobs/${entry.jobId}`}
-                  style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)', textDecoration: 'none', wordBreak: 'break-word' }}
-                >
-                  {entry.job.JobTitle}
-                </Link>
-                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                  {entry.job.Company} · {entry.job.Location}
-                </p>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                  {entry.job.Category && getCategoryLabel(entry.job.Category) && (
-                    <Badge variant="blue" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
-                      {getCategoryLabel(entry.job.Category)}
-                    </Badge>
-                  )}
-                  {!entry.isActive && (
-                    <Badge variant="neutral" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>No longer listed</Badge>
-                  )}
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => void toggleSave(entry.jobId)}>
-                Remove
-              </Button>
+              {entry.job.JobTitle}
+            </a>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>
+              {entry.job.Company} \u00b7 {entry.job.Location}
+              {entry.savedAt && <> \u00b7 saved {formatDate(entry.savedAt)}</>}
+            </p>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+              {entry.job.Category && getCategoryLabel(entry.job.Category) && (
+                <Badge variant="blue" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>
+                  {getCategoryLabel(entry.job.Category)}
+                </Badge>
+              )}
+              {!entry.isActive && (
+                <Badge variant="neutral" style={{ fontSize: '0.68rem', padding: '2px 8px' }}>No longer listed</Badge>
+              )}
             </div>
-          ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => remove(entry.jobId)}
+            aria-label={`Remove ${entry.job.JobTitle} from saved jobs`}
+            title="Remove from saved"
+            className="save-btn is-saved"
+            style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', color: 'var(--primary)', borderRadius: 8, lineHeight: 0, flexShrink: 0 }}
+          >
+            <Bookmark size={16} fill="currentColor" />
+          </button>
         </div>
-      )}
+      ))}
     </div>
   );
 }
@@ -444,7 +541,25 @@ function SubscriptionSection() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="skeleton" style={{ height: 180, borderRadius: 12 }} />;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} role="status" aria-label="Loading subscription">
+        <div className="skeleton-card" style={{ borderRadius: 12, padding: 18, flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div className="skeleton" style={{ width: 34, height: 34, borderRadius: 10 }} />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div className="skeleton" style={{ height: 14, width: '30%' }} /><div className="skeleton" style={{ height: 11, width: '55%' }} />
+            </div>
+          </div>
+          <div className="skeleton" style={{ height: 8, width: '100%', borderRadius: 4 }} />
+          <div className="skeleton" style={{ height: 8, width: '100%', borderRadius: 4 }} />
+        </div>
+        <div className="skeleton-card" style={{ borderRadius: 12, padding: 18, flexDirection: 'column', gap: 10 }}>
+          <div className="skeleton" style={{ height: 14, width: '35%' }} /><div className="skeleton" style={{ height: 11, width: '25%' }} />
+        </div>
+      </div>
+    );
+  }
   if (error || !data) {
     // A missing subscription record is the normal state for a free user —
     // sell the upgrade instead of showing an error. Only premium users

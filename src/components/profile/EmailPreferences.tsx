@@ -162,12 +162,13 @@ export default function EmailPreferences({ profile, loadError, onProfileUpdated 
                   key={opt.value}
                   type="button"
                   onClick={() => toggleCategory(opt.value)}
+                  aria-pressed={isOn}
+                  className={`pref-chip ${isOn ? 'is-on' : ''}`}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
                     padding: '7px 12px',
                     fontSize: '0.8rem', fontWeight: 600, fontFamily: 'inherit',
-                    borderRadius: 8, cursor: 'pointer',
-                    transition: 'background 0.18s, color 0.18s, border-color 0.18s',
+                    borderRadius: 999, cursor: 'pointer',
                     border: isOn ? '1.25px solid var(--acid)' : '1.25px solid var(--border)',
                     background: isOn ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
                     color: isOn ? 'var(--acid)' : 'var(--text-muted)',

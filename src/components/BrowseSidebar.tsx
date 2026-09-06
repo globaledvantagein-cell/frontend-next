@@ -105,6 +105,7 @@ function Section({
         onClick={onToggle}
         aria-expanded={isOpen}
         aria-controls={sectionId}
+        className="section-toggle"
         style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           width: '100%', padding: '10px 0', border: 'none', background: 'none',
@@ -131,7 +132,7 @@ function Section({
           style={{
             color: 'var(--text-muted)', flexShrink: 0,
             transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.18s ease',
+            transition: 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)',
           }}
         />
       </button>
@@ -141,11 +142,11 @@ function Section({
         style={{
           display: 'grid',
           gridTemplateRows: isOpen ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.2s ease',
+          transition: 'grid-template-rows 0.32s cubic-bezier(0.32, 0.72, 0, 1)',
         }}
       >
         <div style={{ overflow: 'hidden', minHeight: 0 }}>
-          <div style={{ padding: '8px 0 12px' }}>{children}</div>
+          <div style={{ padding: '8px 0 12px', opacity: isOpen ? 1 : 0, transform: isOpen ? 'none' : 'translateY(-4px)', transition: 'opacity 0.24s ease, transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)' }}>{children}</div>
         </div>
       </div>
     </div>
@@ -179,6 +180,7 @@ function CheckRow({
         onToggle();
       }}
       aria-pressed={checked}
+      className="check-row"
       style={{
         display: 'flex', alignItems: 'center', gap: 8, width: '100%',
         padding: '5px 6px', borderRadius: 6, border: 'none',
@@ -194,6 +196,7 @@ function CheckRow({
     >
       <span
         aria-hidden
+        className={`check-box ${checked ? 'is-checked' : ''}`}
         style={{
           width: 13, height: 13, flexShrink: 0,
           borderRadius: radio ? '50%' : 3,
@@ -220,8 +223,10 @@ function CheckRow({
 function ScrollList({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="thin-scroll"
-      style={{ maxHeight: LIST_MAX_HEIGHT, overflowY: 'auto', paddingRight: 2, margin: '0 -6px' }}
+      className="thin-scroll scroll-list"
+      // Left bleed only: the right edge stays inside the rail and reserves a
+      // stable gutter, so the count column never slides under the scrollbar.
+      style={{ maxHeight: LIST_MAX_HEIGHT, overflowY: 'auto', paddingRight: 6, margin: '0 0 0 -6px', scrollbarGutter: 'stable' }}
     >
       {children}
     </div>
@@ -316,7 +321,7 @@ export default function BrowseSidebar({
       </div>
 
       {/* ── Search (always visible — never collapsed) ─────────────────── */}
-      <div style={{ display: 'flex', margin: '10px 0 4px' }}>
+      <div style={{ display: 'flex', margin: '10px 0 6px', padding: '4px 0' }}>
         <SearchWithGhost
           value={filters.search}
           onChange={next => setFilters((prev: SidebarFilterState) => ({ ...prev, search: next }))}
@@ -462,7 +467,7 @@ export default function BrowseSidebar({
         isOpen={!!open.company}
         onToggle={toggleSection('company')}
       >
-        <div style={{ position: 'relative', marginBottom: 6 }}>
+        <div style={{ position: 'relative', margin: '2px 4px 8px', padding: '2px 0' }}>
           <Search
             size={13}
             aria-hidden

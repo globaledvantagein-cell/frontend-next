@@ -18,7 +18,6 @@ import { formatPostedDate } from '../utils/date';
 import { parseAllLocations, isMeaningful, detailedSalary } from '../utils/job';
 import { getRemoteDisplayLocation } from '../utils/remoteJob';
 import { Badge } from './ui';
-import { CountryBadge } from './jobs/JobListItem';
 
 export default function RemoteJobDetail({ job }: { job: IJob }) {
   const [showAllLocations, setShowAllLocations] = useState(false);
@@ -102,7 +101,6 @@ export default function RemoteJobDetail({ job }: { job: IJob }) {
           <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <MapPin size={12} /> {primaryLocation}
           </span>
-          <CountryBadge country={job.Country} />
           <Badge variant="blue" style={{ fontSize: '0.72rem' }}>Remote</Badge>
         </div>
 

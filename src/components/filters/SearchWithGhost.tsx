@@ -127,25 +127,27 @@ export default function SearchWithGhost({
       {/* Ghost layer — ABOVE the input so the tail paints over its background,
           with the typed portion transparent so the real text shows through.
           Never interactive. */}
-      {ghost && (
-        <div
-          aria-hidden
-          style={{
-            ...sharedText,
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            whiteSpace: 'pre',
-            overflow: 'hidden',
-            pointerEvents: 'none',
-            zIndex: 3,
-          }}
-        >
-          <span style={{ color: 'transparent' }}>{value}</span>
-          <span style={{ color: 'var(--text-muted)', opacity: 0.4 }}>{ghost}</span>
-        </div>
-      )}
+      {/* Always mounted; opacity fades (150ms) instead of the layer mounting
+          and unmounting, which flashed on every keystroke. */}
+      <div
+        aria-hidden
+        className="ghost-text"
+        style={{
+          ...sharedText,
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          whiteSpace: 'pre',
+          overflow: 'hidden',
+          pointerEvents: 'none',
+          zIndex: 3,
+          opacity: ghost ? 1 : 0,
+        }}
+      >
+        <span style={{ color: 'transparent' }}>{value}</span>
+        <span style={{ color: 'var(--text-muted)', opacity: 0.4 }}>{ghost}</span>
+      </div>
 
       <input
         ref={inputRef}
@@ -154,6 +156,7 @@ export default function SearchWithGhost({
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         aria-autocomplete="inline"
+        className="search-input"
         style={{
           ...style,
           ...sharedText,

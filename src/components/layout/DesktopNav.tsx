@@ -37,14 +37,15 @@ function NavLink({
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
       {label}
       {premiumLocked && <Crown size={12} style={{ color: 'var(--acid)' }} aria-label="Premium" />}
-      {active && <span style={{ position: 'absolute', bottom: -1, left: 0, right: 0, height: 2, background: 'var(--acid)', borderRadius: 2 }} />}
     </span>
   );
 
   return (
     <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'flex-start' }}>
-      {/* Every route is a Next.js page now — instant client navigation. */}
-      <Link to={path} style={linkStyle(active)} onMouseEnter={onEnter} onMouseLeave={onLeave}>
+      {/* Every route is a Next.js page now — instant client navigation.
+          The active/hover underline is .nav-link::after (globals.css) so it
+          slides in instead of appearing. */}
+      <Link to={path} className={`nav-link ${active ? 'is-active' : ''}`} style={linkStyle(active)} onMouseEnter={onEnter} onMouseLeave={onLeave}>
         {inner}
       </Link>
       {badge != null && badge > 0 && (
