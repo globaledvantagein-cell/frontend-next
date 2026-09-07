@@ -1,13 +1,13 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { Suspense, type ReactNode } from 'react';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { AuthProvider } from '../context/AuthContext';
 import { AppliedJobsProvider } from '../context/AppliedJobsContext';
 import { SavedJobsProvider } from '../context/SavedJobsContext';
-import CookieConsent from './CookieConsent';
 import PostHogInit from './PostHogInit';
+import GAPageView from './GAPageView';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || '';
 
@@ -27,8 +27,15 @@ export default function Providers({ children }: { children: ReactNode }) {
           <AppliedJobsProvider>
             <SavedJobsProvider>
               <PostHogInit />
+              {/* GAPageView reads useSearchParams, which needs a Suspense
+                  boundary during prerender. */}
+              <Suspense fallback={null}>
+                <GAPageView />
+              </Suspense>
               {children}
-              <CookieConsent />
+              {/* <CookieConsent /> intentionally not rendered — tracking is
+                  ungated (see utils/consent.ts). The component and the consent
+                  helpers are kept intact so this is a one-line re-enable. */}
             </SavedJobsProvider>
           </AppliedJobsProvider>
         </AuthProvider>
