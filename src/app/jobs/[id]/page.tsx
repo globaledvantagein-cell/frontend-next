@@ -13,8 +13,16 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const res = await fetchJobFull(id);
   const job = res?.job || res?.teaser;
   if (!job) {
-    // Safety net — the page itself calls notFound() (real 404), but if it's
-    // ever rendered, keep it out of the index.
+    // Expired/removed job. The page below also calls notFound(); this keeps the
+    // response out of the index either way.
+    //
+    // NOTE: this cannot produce a real HTTP 404. app/loading.tsx starts the
+    // response stream before this resolves, and Next cannot change the status
+    // once headers are sent (docs: file-conventions/loading#status-codes), so
+    // the response is 200 + noindex. Per those same docs that does NOT lead to
+    // indexation — Next also auto-injects <meta name="robots" content="noindex">
+    // for the 404 fallback. Removing the loading.tsx skeletons would be the
+    // only way to get a true 404 here, at the cost of the loading UX.
     return { title: 'Job not found — English Jobs Germany', robots: { index: false, follow: false } };
   }
   const title = `${job.JobTitle} at ${job.Company} — English Jobs Germany`;
