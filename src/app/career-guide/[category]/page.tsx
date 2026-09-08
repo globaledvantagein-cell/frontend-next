@@ -5,6 +5,8 @@ import { fetchArticlesByCategory, SITE_URL } from '@/lib/serverApi';
 import { CAREER_GUIDE_CATEGORIES, careerCategoryLabel } from '@/data/careerGuide';
 import { estimateReadingMinutes } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { brandTitle } from '@/lib/seoTitle';
+import { alternatesFor } from '@/lib/seoAlternates';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,11 +22,11 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   if (!CAREER_GUIDE_CATEGORIES.includes(category)) return { title: 'Not found' };
   const label = careerCategoryLabel(category);
   const articles = await fetchArticlesByCategory(category);
-  const title = `${label} — Germany Career Guide`;
+  const title = brandTitle(`${label} — Career Guide`, label);
   const description = `${articles.length} ${
     articles.length === 1 ? 'guide' : 'guides'
   } on ${label.toLowerCase()} for English speakers in Germany.`;
-  return { title, description, alternates: { canonical: `/career-guide/${category}` } };
+  return { title, description, alternates: alternatesFor(`/career-guide/${category}`) };
 }
 
 export default async function CareerGuideCategory({ params }: Params) {

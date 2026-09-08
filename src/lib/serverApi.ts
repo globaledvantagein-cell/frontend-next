@@ -59,6 +59,27 @@ export async function fetchDirectory(revalidate?: number): Promise<ICompany[]> {
   return Array.isArray(data) ? data : [];
 }
 
+export interface RelatedJobs {
+  /** The viewed job's category, or null when it has none / is unknown. */
+  category: string | null;
+  /** Honest public count for that category, for the "N+ positions" copy. */
+  categoryTotal: number;
+  jobs: IJob[];
+}
+
+/**
+ * GET /api/jobs/:id/related — up to `limit` newest jobs in the same category,
+ * excluding the viewed one. Served from the backend's RAM cache (no DB), and
+ * the endpoint returns an empty set rather than an error for an unknown id, so
+ * the job page's related block simply doesn't render.
+ */
+export async function fetchRelatedJobs(id: string, limit = 5): Promise<RelatedJobs> {
+  const data = await getJson<RelatedJobs>(
+    `/api/jobs/${encodeURIComponent(id)}/related?limit=${limit}`,
+  );
+  return data ?? { category: null, categoryTotal: 0, jobs: [] };
+}
+
 /** GET /api/jobs/:id/full — full job (or gated teaser). Anonymous server request. */
 export async function fetchJobFull(
   id: string,

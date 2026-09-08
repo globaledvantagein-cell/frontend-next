@@ -48,7 +48,7 @@ function toIsoDate(value?: string | null): string | undefined {
   return isNaN(d.getTime()) ? undefined : d.toISOString();
 }
 
-const SIXTY_DAYS_MS = 60 * 24 * 60 * 60 * 1000;
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
  * schema.org JobPosting — required for Google for Jobs eligibility and the
@@ -62,6 +62,9 @@ export function jobPostingJsonLd(
     PostedDate?: string | null; scrapedAt?: string;
     filterEmployment?: string | null; filterWorkplace?: string | null;
     filterSalaryMin?: number | null; filterSalaryMax?: number | null;
+    filterSalaryInterval?: string | null;
+    SalaryMin?: number | null; SalaryMax?: number | null;
+    SalaryCurrency?: string | null; SalaryInterval?: string | null;
   },
   siteUrl: string,
 ) {
@@ -95,12 +98,15 @@ export function jobPostingJsonLd(
     directApply: true,
   };
 
-  // validThrough: no explicit expiry on job docs, so use PostedDate + 60 days.
-  // Tells Google when to auto-drop the listing. Omit if PostedDate is missing.
-  if (job.PostedDate) {
-    const posted = new Date(job.PostedDate);
+  // validThrough: no explicit expiry on job docs, so use PostedDate + 90 days —
+  // anything older than that is almost certainly filled. Tells Google for Jobs
+  // when to auto-drop the listing. Falls back to scrapedAt when PostedDate is
+  // missing, so a listing is never left without an expiry.
+  const validFrom = job.PostedDate || job.scrapedAt;
+  if (validFrom) {
+    const posted = new Date(validFrom);
     if (!isNaN(posted.getTime())) {
-      data.validThrough = new Date(posted.getTime() + SIXTY_DAYS_MS).toISOString();
+      data.validThrough = new Date(posted.getTime() + NINETY_DAYS_MS).toISOString();
     }
   }
 
@@ -112,15 +118,27 @@ export function jobPostingJsonLd(
     data.jobLocationType = 'TELECOMMUTE';
     data.applicantLocationRequirements = { '@type': 'Country', name: 'Germany' };
   }
-  if (job.filterSalaryMin != null || job.filterSalaryMax != null) {
+  // baseSalary — the canonical filter fields first, falling back to the raw
+  // Salary* fields so jobs the normalizer didn't reconcile still get a salary
+  // into Google for Jobs (listings that show pay get markedly higher CTR).
+  const salaryMin = job.filterSalaryMin ?? job.SalaryMin ?? null;
+  const salaryMax = job.filterSalaryMax ?? job.SalaryMax ?? null;
+  if (salaryMin != null || salaryMax != null) {
+    const currency = (job.SalaryCurrency || 'EUR').toUpperCase();
+    const interval = (job.filterSalaryInterval || job.SalaryInterval || '').toLowerCase();
+    const unitText = interval.startsWith('hour') ? 'HOUR'
+      : interval.startsWith('day') ? 'DAY'
+      : interval.startsWith('week') ? 'WEEK'
+      : interval.startsWith('month') ? 'MONTH'
+      : 'YEAR';
     data.baseSalary = {
       '@type': 'MonetaryAmount',
-      currency: 'EUR',
+      currency,
       value: {
         '@type': 'QuantitativeValue',
-        ...(job.filterSalaryMin != null ? { minValue: job.filterSalaryMin } : {}),
-        ...(job.filterSalaryMax != null ? { maxValue: job.filterSalaryMax } : {}),
-        unitText: 'YEAR',
+        ...(salaryMin != null ? { minValue: salaryMin } : {}),
+        ...(salaryMax != null ? { maxValue: salaryMax } : {}),
+        unitText,
       },
     };
   }

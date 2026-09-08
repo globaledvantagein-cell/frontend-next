@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import RemoteJobSharePage from '@/page-components/RemoteJobSharePage';
+import { alternatesFor } from '@/lib/seoAlternates';
 
 // The remote detail endpoint is ungated and the vertical is not enumerated in
 // the sitemap, so there is nothing to prerender — render on demand.
@@ -11,7 +12,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params;
   return {
     title: 'Remote job — English Jobs Germany',
-    alternates: { canonical: `/remote-jobs/${id}` },
+    alternates: alternatesFor(`/remote-jobs/${id}`),
   };
 }
 

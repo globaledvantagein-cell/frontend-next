@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, memo } from 'react';
+import { useCallback, useEffect, useMemo, useState, memo, type ReactNode } from 'react';
 import { useNavigate } from '@/compat/router';
 import { ExternalLink, MapPin, Search, Pencil, Globe } from 'lucide-react';
 import { companiesPage } from '../theme/companies-content';
@@ -329,7 +329,13 @@ function EditCompanyModal({
   );
 }
 
-export default function CompanyDirectory() {
+/**
+ * `header` is the page's <h1> + intro prose, passed in from the server page
+ * (app/directory/page.tsx) so it is plain server-rendered HTML: this component
+ * is a client component whose company list arrives from the browser, and the
+ * heading must not depend on that.
+ */
+export default function CompanyDirectory({ header }: { header?: ReactNode }) {
   const { isAdmin } = useAuth();
   const [companies, setCompanies] = useState<Company[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -343,7 +349,6 @@ export default function CompanyDirectory() {
   }, []);
 
   useEffect(() => {
-    document.title = companiesPage.title;
     const ctrl = new AbortController();
     apiGet<Company[]>('/api/jobs/directory', { signal: ctrl.signal, noAuth: true })
       .then(data => setCompanies(Array.isArray(data) ? data : []))
@@ -381,8 +386,7 @@ export default function CompanyDirectory() {
         background: 'linear-gradient(180deg, rgba(147,197,253,0.18) 0%, rgba(134,239,172,0.10) 50%, transparent 100%)',
         paddingTop: 60, paddingBottom: 48, marginBottom: 32, textAlign: 'center',
       }}>
-        <h1 style={{ fontFamily: 'Playfair Display,serif', fontWeight: 700, textAlign: 'center', fontSize: 'clamp(1.8rem, 3.5vw, 2.6rem)', color: 'var(--text-primary)', margin: 0 }}>{companiesPage.title}</h1>
-        <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.75, maxWidth: 680, margin: '22px auto 28px', textAlign: 'center' }}>{companiesPage.intro}</div>
+        {header}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
           <div style={{ position: 'relative', width: '100%', maxWidth: 400 }}>
             <Search size={18} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />

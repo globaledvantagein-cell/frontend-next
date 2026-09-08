@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from '@/compat/router';
 import type { IJob, ICompany } from '../types';
 import { HOME_CATEGORIES, categorySlug } from '../utils/categorize';
@@ -129,6 +129,20 @@ interface HomeArticle { title: string; slug: string; category: string; readingMi
 
 interface HomeProps {
   initialJobs?: IJob[];
+  /**
+   * The page's <h1>, rendered inside the hero. Passed in from the server page
+   * (app/page.tsx) for the same reason as `intro` — it is the page's single
+   * strongest ranking signal and must be plain server-rendered HTML rather
+   * than something this client component produces.
+   */
+  heading?: ReactNode;
+  /**
+   * Static intro copy rendered straight below the hero. Passed in from the
+   * server page (app/page.tsx) rather than written here so the prose is a
+   * plain server component — no hydration, and it is present in the HTML for
+   * crawlers regardless of what this client component does.
+   */
+  intro?: ReactNode;
   initialCompanies?: ICompany[];
   companyCount?: number;
   articles?: HomeArticle[];
@@ -198,7 +212,7 @@ function useHomeMotion(rootRef: React.RefObject<HTMLDivElement | null>) {
   }, [rootRef]);
 }
 
-export default function Home({ initialJobs = [], initialCompanies = [] }: HomeProps) {
+export default function Home({ initialJobs = [], initialCompanies = [], heading, intro }: HomeProps) {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [heroLocation, setHeroLocation] = useState('');
@@ -294,18 +308,9 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
               For job seekers who don&rsquo;t speak German
             </div>
 
-            <h1 className="lp-balance" style={{
-              maxWidth: 880, margin: '0 auto', fontSize: 'clamp(42px, 6.4vw, 76px)',
-              lineHeight: 1.0, letterSpacing: '-0.04em', fontWeight: 800,
-            }}>
-              Find jobs in Germany<br />
-              <span style={{
-                color: 'var(--primary)', fontFamily: "Georgia, 'Times New Roman', serif",
-                fontStyle: 'italic', fontWeight: 500, letterSpacing: '-0.02em',
-              }}>
-                German not required.
-              </span>
-            </h1>
+            {/* Server-rendered <h1> (see the `heading` prop). Stays the second
+                child of the hero so the entry animation still targets it. */}
+            {heading}
 
             <p style={{ maxWidth: 640, margin: '22px auto 0', color: 'var(--text-secondary)', fontSize: 18 }}>
               We screen every listing so you only see roles that don&rsquo;t demand fluent German —{' '}
@@ -380,6 +385,9 @@ export default function Home({ initialJobs = [], initialCompanies = [] }: HomePr
             </div>
           </div>
         </section>
+
+        {/* Server-rendered intro prose (see the `intro` prop). */}
+        {intro}
 
         {/* ── TRUST LOGOS (real companies from the directory) ───────────────── */}
         {trustCompanies.length > 0 && (

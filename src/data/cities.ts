@@ -112,6 +112,22 @@ export function findCityBySlug(slug: string): City | null {
   return CITY_BY_SLUG.get((slug || '').toLowerCase()) || null;
 }
 
+/**
+ * Resolves a free-text job location ("Berlin, Germany", "München") to its
+ * canonical city, so a job page can link to the right /city/<slug> hub.
+ * Matches the display label and the German/alternate spellings, longest name
+ * first so "Frankfurt am Main" can't be shadowed by a shorter entry.
+ */
+const CITY_MATCHERS: { needle: string; city: City }[] = CANONICAL_CITIES
+  .flatMap((city) => [city.label, ...city.aliases].map((n) => ({ needle: n.toLowerCase(), city })))
+  .sort((a, b) => b.needle.length - a.needle.length);
+
+export function findCityByLocation(location?: string | null): City | null {
+  const haystack = (location || '').toLowerCase();
+  if (!haystack) return null;
+  return CITY_MATCHERS.find((m) => haystack.includes(m.needle))?.city || null;
+}
+
 // Featured cities shown on the homepage "Jobs by City" block.
 export const FEATURED_CITY_SLUGS = [
   'berlin', 'munich', 'hamburg', 'frankfurt', 'cologne', 'stuttgart',

@@ -29,11 +29,27 @@ const organizationJsonLd = {
   },
 };
 
+// The WebSite entity, with the SearchAction that makes the site eligible for
+// Google's sitelinks search box (searching from inside the search result).
+// `target` must be the real search route — /jobs?search= is what the site's own
+// search box submits to. Kept as ONE WebSite node in the root layout rather
+// than a second copy on the homepage: two WebSite entities for the same URL
+// compete instead of reinforcing each other.
 const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "English Jobs in Germany",
+  name: "English Jobs Germany",
   url: SITE_URL,
+  description: "Find English-speaking jobs in Germany. No German required.",
+  publisher: { "@type": "Organization", name: "English Jobs in Germany" },
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${SITE_URL}/jobs?search={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
 };
 
 // Runs before first paint. Every colour on the site is a CSS variable that

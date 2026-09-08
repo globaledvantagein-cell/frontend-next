@@ -4,10 +4,12 @@ import { notFound, redirect } from 'next/navigation';
 import { fetchArticleBySlug, fetchArticlesByCategory, SITE_URL } from '@/lib/serverApi';
 import { careerCategoryLabel } from '@/data/careerGuide';
 import { renderArticle } from '@/lib/markdown';
+import { brandTitle } from '@/lib/seoTitle';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 import ReadingProgress from '@/components/ReadingProgress';
 import ArticleShare from '@/components/ArticleShare';
 import ArticleCta from '@/components/ArticleCta';
+import { alternatesFor } from '@/lib/seoAlternates';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,15 +35,18 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
   const article = await fetchArticleBySlug(slug);
   if (!article) return { title: 'Article not found' };
-  const title = `${article.title} — Germany Career Guide`;
+  // Just the article title — the layout template appends the brand. The old
+  // "— Germany Career Guide" suffix pushed every title past Google's ~60-char
+  // SERP cutoff and duplicated the brand.
+  const title = brandTitle(article.title);
   const description =
     article.description ||
     `${article.title} — a practical guide for English speakers working in Germany.`;
   return {
     title,
     description,
-    alternates: { canonical: `/career-guide/${article.category}/${slug}` },
-    openGraph: { title, description, type: 'article' },
+    alternates: alternatesFor(`/career-guide/${article.category}/${slug}`),
+    openGraph: { title: article.title, description, type: 'article' },
   };
 }
 
@@ -53,7 +58,7 @@ export default async function CareerGuideArticle({ params }: Params) {
   if (article.category !== category) redirect(`/career-guide/${article.category}/${slug}`);
 
   const label = careerCategoryLabel(article.category);
-  const { html, readingMinutes } = renderArticle(article.content);
+  const { html, readingMinutes } = renderArticle(article.content, article.title);
   const pageUrl = `${SITE_URL}/career-guide/${article.category}/${slug}`;
 
   const related = (await fetchArticlesByCategory(article.category))

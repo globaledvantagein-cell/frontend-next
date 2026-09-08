@@ -115,7 +115,8 @@ export default function Alerts() {
 
           <div style={{ background: 'var(--surface-solid)', border: '1.25px solid var(--border)', borderRadius: 18, padding: '36px 32px', boxShadow: 'var(--shadow-lg)' }}>
             <div style={{ marginBottom: 28 }}>
-              <h2 style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', marginBottom: 6 }}>{CONTENT.signup.form.heading}</h2>
+              {/* The page's only heading, so it is the <h1>. */}
+              <h1 style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--ink)', letterSpacing: '-0.02em', marginBottom: 6 }}>Weekly Job Alerts</h1>
               <p style={{ color: 'var(--subtle-ink)', fontSize: '0.9rem' }}>{CONTENT.signup.form.subtitle}</p>
             </div>
             {status === 'error' && <div style={{ marginBottom: 18 }}><Alert type="error">{err}</Alert></div>}

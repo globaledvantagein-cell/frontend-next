@@ -4,6 +4,7 @@ import { fetchPublishedArticles, SITE_URL } from '@/lib/serverApi';
 import { CAREER_GUIDE_CATEGORIES, careerCategoryLabel } from '@/data/careerGuide';
 import { estimateReadingMinutes } from '@/lib/markdown';
 import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { alternatesFor } from '@/lib/seoAlternates';
 
 // ISR: articles change rarely, so cache the page and revalidate hourly. The
 // article fetch passes the same `revalidate` (a `no-store` fetch would force
@@ -11,10 +12,11 @@ import JsonLd, { breadcrumbJsonLd } from '@/components/seo/JsonLd';
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title: 'Germany Career Guide — Working in Germany Without German',
+  // 43 chars with the layout's brand suffix — safely inside Google's cutoff.
+  title: 'Germany Career Guide',
   description:
     'Practical guides on finding English-speaking jobs in Germany: visas, salaries, companies, and settling in. Written for internationals.',
-  alternates: { canonical: '/career-guide' },
+  alternates: alternatesFor('/career-guide'),
 };
 
 function formatDate(value?: string | null): string {
@@ -44,7 +46,11 @@ export default async function CareerGuideHub() {
 
       <header className="guide-hero">
         <span className="guide-hero__eyebrow">Career Guide</span>
-        <h1 className="guide-hero__title">Working in Germany, in English</h1>
+        <h1 className="guide-hero__title">Germany Career Guide</h1>
+        <p className="guide-hero__lede">
+          Your complete guide to working in Germany as an English speaker. From finding jobs
+          to navigating visas, salary negotiation to settling in — everything you need to know.
+        </p>
         <p className="guide-hero__lede">
           Practical, no-nonsense guides on landing an English-speaking job in Germany — visas,
           salaries, companies, and everything about settling in. Written for internationals.

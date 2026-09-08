@@ -2,9 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { findCityBySlug, CANONICAL_CITIES } from '@/data/cities';
+import { cityIntro } from '@/data/cityIntros';
 import { fetchJobs, SITE_URL } from '@/lib/serverApi';
 import SeoJobCard from '@/components/seo/SeoJobCard';
 import JsonLd, { itemListJsonLd, breadcrumbJsonLd } from '@/components/seo/JsonLd';
+import { alternatesFor } from '@/lib/seoAlternates';
 
 // ISR: cache the rendered page and revalidate hourly. Job listings change
 // slowly, so serving cached HTML is a big win; the fetches below opt into the
@@ -20,20 +22,52 @@ export function generateStaticParams() {
 
 type Params = { params: Promise<{ city: string }> };
 
+/**
+ * The employers with the most open roles in a result set. Named in both the
+ * meta description and the on-page copy so each city page cites real,
+ * currently-hiring companies rather than a hard-coded list that goes stale.
+ */
+function topEmployers(jobs: { Company: string }[], n: number): string[] {
+  const byCompany = new Map<string, number>();
+  for (const j of jobs) byCompany.set(j.Company, (byCompany.get(j.Company) || 0) + 1);
+  return [...byCompany.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, n)
+    .map(([name]) => name);
+}
+
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { city: slug } = await params;
   const city = findCityBySlug(slug);
   if (!city) return { title: 'City not found' };
-  const { totalJobs } = await fetchJobs({ search: city.slug, limit: 1, revalidate: 3600 });
-  const title = `English Jobs in ${city.label} — No German Required`;
-  const description = `${totalJobs} ${
-    totalJobs === 1 ? 'job' : 'jobs'
-  } in ${city.label} for English speakers, expats and internationals. Work in ${city.label}, Germany without German — every role is checked before it is listed.`;
+  // Same request the page body makes, so this is a cache hit rather than a
+  // second API call — and the description can name real employers.
+  const { jobs, totalJobs } = await fetchJobs({ search: city.slug, limit: 100, revalidate: 3600 });
+  const companies = topEmployers(jobs, 3);
+
+  // Exact-match title for the "english jobs in <city>" queries, set absolute so
+  // the layout's brand template doesn't push it past Google's ~60-char cutoff.
+  // Only the handful of very long city names fall back to the brand pattern.
+  const headline = `English Jobs in ${city.label} — No German Required`;
+  const title: Metadata['title'] =
+    headline.length <= 60 ? { absolute: headline } : `English Jobs in ${city.label}`;
+
+  const positions = totalJobs > 0
+    ? `Browse ${totalJobs}+ verified ${totalJobs === 1 ? 'position' : 'positions'}`
+    : 'Browse verified positions';
+  const description = `Find English-speaking jobs in ${city.label}, Germany. ${positions}${
+    companies.length ? ` at companies like ${companies.join(', ')}` : ''
+  }. No German required.`;
   return {
     title,
     description,
-    alternates: { canonical: `/city/${city.slug}` },
-    openGraph: { title, description, url: `${SITE_URL}/city/${city.slug}`, type: 'website' },
+    alternates: alternatesFor(`/city/${city.slug}`),
+    openGraph: {
+      title: headline,
+      description,
+      url: `${SITE_URL}/city/${city.slug}`,
+      type: 'website',
+    },
   };
 }
 
@@ -44,6 +78,9 @@ export default async function CityPage({ params }: Params) {
 
   const { jobs, totalJobs } = await fetchJobs({ search: city.slug, limit: 100, revalidate: 3600 });
   const otherCities = CANONICAL_CITIES.filter((c) => c.slug !== city.slug).slice(0, 24);
+
+  const topCompanies = topEmployers(jobs, 3);
+  const introParagraphs = cityIntro(city.slug, city.label, totalJobs, topCompanies);
 
   const title = `English Jobs in ${city.label} — No German Required`;
 
@@ -68,12 +105,23 @@ export default async function CityPage({ params }: Params) {
       </nav>
 
       <h1 style={{ fontSize: 'clamp(1.6rem,4vw,2.4rem)', fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
-        English Jobs in {city.label}
+        English-Speaking Jobs in {city.label}, Germany
       </h1>
-      <p style={{ color: 'var(--text-secondary)', marginTop: 10, fontSize: '1rem', maxWidth: 640 }}>
-        {totalJobs} English-speaking {totalJobs === 1 ? 'role' : 'roles'} in {city.label}, Germany.
-        No German required — every role is checked before it is listed.
-      </p>
+      {/* Unique, server-rendered prose per city — the page's indexable text. */}
+      {introParagraphs.map((paragraph, i) => (
+        <p
+          key={i}
+          style={{
+            color: 'var(--text-secondary)',
+            marginTop: i === 0 ? 14 : 12,
+            fontSize: '1rem',
+            lineHeight: 1.7,
+            maxWidth: 720,
+          }}
+        >
+          {paragraph}
+        </p>
+      ))}
 
       <div style={{ margin: '24px 0' }}>
         <Link

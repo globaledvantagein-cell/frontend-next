@@ -40,7 +40,7 @@ export default function CompanyLogo({ companyName, domain, size = 40 }: {
       <img
         ref={attach}
         src={url}
-        alt=""
+        alt={`${companyName} logo`}
         width={size}
         height={size}
         className={`company-logo ${loaded ? 'is-loaded' : ''}`}
