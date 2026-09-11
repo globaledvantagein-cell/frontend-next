@@ -310,29 +310,85 @@ function SkillsCard({ skills, onSkillsUpdated }: { skills: Skill[]; onSkillsUpda
     </Card>
   );
 }
-// ── Inline Resume Uploader ─────────────────────────────────────────────────────
-// Handles upload, dedup detection (silent toast for same resume), and profile update.
-function ResumeUploader({ compact, onParsed }: { compact?: boolean; onParsed: (p: any) => void }) {
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'reused'>('idle');
+// ── Async resume parsing hook ──────────────────────────────────────────────────
+// The parse runs in the background on the server (Gemma takes 60–90s). We POST
+// the file, get an instant { status: 'processing' } back, then poll
+// /api/auth/parse-status until 'complete' or 'failed'. Progress survives a
+// reload/navigation via a localStorage marker, so the user can come back to it.
+const PARSE_KEY = 'ejg_resume_parsing';
+const POLL_MS = 5000;
+const MSG_ROTATE_MS = 10000;
+const MAX_RESUME_AGE_MS = 5 * 60 * 1000; // stop auto-resuming after 5 min
+
+const PARSING_MESSAGES = [
+  'Extracting your skills and experience...',
+  'Matching your profile to 2,500+ jobs...',
+  'Building your personalized job recommendations...',
+  'Almost there — finalizing your profile...',
+];
+
+type UploadPhase = 'idle' | 'uploading' | 'processing' | 'reused' | 'error';
+
+function useResumeParsing(onParsed: (p: any) => void) {
+  const [phase, setPhase] = useState<UploadPhase>('idle');
   const [error, setError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragOver, setDragOver] = useState(false);
+  const [msgIndex, setMsgIndex] = useState(0);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const msgRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Keep the latest onParsed without re-subscribing timers to it.
+  const onParsedRef = useRef(onParsed);
+  useEffect(() => { onParsedRef.current = onParsed; }, [onParsed]);
 
-  const upload = useCallback(async (file: File) => {
-    if (file.type !== 'application/pdf') {
-      setError('Please upload a PDF file.');
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      setError('File too large. Max 10 MB.');
-      return;
-    }
+  const stopTimers = useCallback(() => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (msgRef.current) { clearInterval(msgRef.current); msgRef.current = null; }
+  }, []);
 
-    setStatus('uploading');
+  const clearMarker = useCallback(() => {
+    try { localStorage.removeItem(PARSE_KEY); } catch { /* ignore */ }
+  }, []);
+
+  const poll = useCallback(async () => {
+    try {
+      const data = await apiGet<{ status: string; profile?: any; error?: string }>('/api/auth/parse-status');
+      if (data.status === 'complete') {
+        stopTimers();
+        clearMarker();
+        setPhase('idle');
+        setError(null);
+        if (data.profile) onParsedRef.current(data.profile);
+      } else if (data.status === 'failed') {
+        stopTimers();
+        clearMarker();
+        setPhase('error');
+        setError(data.error || 'Resume analysis failed. Please try again.');
+      } else if (data.status === 'idle') {
+        // Server is no longer processing (e.g. the 10-min stuck-cleanup fired).
+        stopTimers();
+        clearMarker();
+        setPhase('idle');
+      }
+      // 'processing' → keep polling.
+    } catch {
+      // Transient network error — keep polling; the 5-min guard stops us eventually.
+    }
+  }, [stopTimers, clearMarker]);
+
+  const beginPolling = useCallback(() => {
+    stopTimers();
+    setPhase('processing');
+    setError(null);
+    setMsgIndex(0);
+    pollRef.current = setInterval(poll, POLL_MS);
+    msgRef.current = setInterval(() => setMsgIndex(i => (i + 1) % PARSING_MESSAGES.length), MSG_ROTATE_MS);
+  }, [poll, stopTimers]);
+
+  const startUpload = useCallback(async (file: File) => {
+    setPhase('uploading');
     setError(null);
 
     const token = localStorage.getItem('ejg_token');
-    if (!token) { setError('Not signed in.'); setStatus('idle'); return; }
+    if (!token) { setPhase('error'); setError('Not signed in.'); return; }
 
     const formData = new FormData();
     formData.append('resume', file);
@@ -346,78 +402,154 @@ function ResumeUploader({ compact, onParsed }: { compact?: boolean; onParsed: (p
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed');
 
-      if (data.reused) {
-        setStatus('reused');
-        setTimeout(() => setStatus('idle'), 3000);
-      } else {
-        onParsed(data.profile);
-        setStatus('idle');
+      if (data.status === 'unchanged') {
+        setPhase('reused');
+        setTimeout(() => setPhase('idle'), 3000);
+        return;
       }
+      // 'processing' — persist a marker so a reload/navigation resumes polling.
+      try { localStorage.setItem(PARSE_KEY, JSON.stringify({ startedAt: Date.now() })); } catch { /* ignore */ }
+      beginPolling();
+      poll(); // check once immediately in case it finished fast
     } catch (err: any) {
+      setPhase('error');
       setError(err.message || 'Something went wrong');
-      setStatus('idle');
     }
-  }, [onParsed]);
+  }, [beginPolling, poll]);
+
+  // On mount: resume an in-progress parse from a previous page load.
+  useEffect(() => {
+    let marker: { startedAt: number } | null = null;
+    try {
+      const raw = localStorage.getItem(PARSE_KEY);
+      if (raw) marker = JSON.parse(raw);
+    } catch { marker = null; }
+
+    if (marker?.startedAt) {
+      const age = Date.now() - marker.startedAt;
+      if (age < MAX_RESUME_AGE_MS) {
+        beginPolling();
+        poll();
+      } else {
+        // Stale marker — give up auto-resuming, but check once to settle state.
+        clearMarker();
+        apiGet<{ status: string; profile?: any; error?: string }>('/api/auth/parse-status')
+          .then(data => {
+            if (data.status === 'complete') { if (data.profile) onParsedRef.current(data.profile); }
+            else if (data.status === 'failed') { setPhase('error'); setError(data.error || 'Resume analysis failed.'); }
+          })
+          .catch(() => { /* ignore */ });
+      }
+    }
+    return () => stopTimers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { phase, error, message: PARSING_MESSAGES[msgIndex], startUpload, reset: () => { setPhase('idle'); setError(null); } };
+}
+
+// ── Processing indicator ──────────────────────────────────────────────────────
+function ProcessingIndicator({ message }: { message: string }) {
+  return (
+    <div className="ejg-parsing" role="status" aria-live="polite">
+      <div className="ejg-parsing__dots" aria-hidden="true"><span /><span /><span /></div>
+      <p className="ejg-parsing__headline">Analyzing your resume…</p>
+      <p className="ejg-parsing__msg">{message}</p>
+      <p className="ejg-parsing__hint">
+        This usually takes about 60 seconds. You can leave this page — we'll keep analyzing.
+      </p>
+    </div>
+  );
+}
+
+// ── Inline Resume Uploader ─────────────────────────────────────────────────────
+// Handles upload, dedup detection (toast for same resume), async parse progress,
+// and profile update.
+function ResumeUploader({ compact, onParsed }: { compact?: boolean; onParsed: (p: any) => void }) {
+  const { phase, error, message, startUpload, reset } = useResumeParsing(onParsed);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const busy = phase === 'uploading' || phase === 'processing';
+
+  const handlePicked = (file: File) => {
+    setLocalError(null);
+    if (file.type !== 'application/pdf') { setLocalError('Please upload a PDF file.'); return; }
+    if (file.size > 10 * 1024 * 1024) { setLocalError('File too large. Max 10 MB.'); return; }
+    startUpload(file);
+  };
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) upload(file);
+    if (file) handlePicked(file);
     e.target.value = '';
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
+    if (busy) return;
     const file = e.dataTransfer.files?.[0];
-    if (file) upload(file);
+    if (file) handlePicked(file);
   };
 
-  // Compact mode: just a button (used in header next to "Parsed Resume")
+  const shownError = localError || (phase === 'error' ? error : null);
+
+  // Compact mode: button (used in the header next to "Parsed Resume")
   if (compact) {
     return (
       <div>
         <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} style={{ display: 'none' }} />
-        <Button
-          variant="ghost" size="sm"
-          onClick={() => inputRef.current?.click()}
-          disabled={status === 'uploading'}
-        >
-          <Upload size={12} /> {status === 'uploading' ? 'Parsing…' : 'Re-upload'}
-        </Button>
-        {status === 'reused' && (
+        {phase === 'processing' ? (
+          <ProcessingIndicator message={message} />
+        ) : (
+          <Button
+            variant="ghost" size="sm"
+            onClick={() => { reset(); inputRef.current?.click(); }}
+            disabled={busy}
+          >
+            <Upload size={12} /> {phase === 'uploading' ? 'Uploading…' : 'Re-upload'}
+          </Button>
+        )}
+        {phase === 'reused' && (
           <p style={{ fontSize: '0.74rem', color: 'var(--success)', marginTop: 4 }}>
             Resume unchanged — profile already up to date.
           </p>
         )}
-        {error && <p style={{ fontSize: '0.74rem', color: 'var(--error)', marginTop: 4 }}>{error}</p>}
+        {shownError && <p style={{ fontSize: '0.74rem', color: 'var(--error)', marginTop: 4 }}>{shownError}</p>}
       </div>
     );
   }
 
-  // Full mode: drag-drop zone (used when no profile exists)
+  // Full mode: drag-drop zone (used when no profile exists yet)
   return (
     <div>
       <input ref={inputRef} type="file" accept=".pdf" onChange={handleFile} style={{ display: 'none' }} />
-      {status === 'reused' ? (
+      {phase === 'processing' ? (
+        <div style={{ border: '2px dashed var(--acid-mid)', borderRadius: 10, background: 'var(--acid-dim)' }}>
+          <ProcessingIndicator message={message} />
+        </div>
+      ) : phase === 'reused' ? (
         <Alert type="info">Resume unchanged — profile already up to date.</Alert>
       ) : (
         <div
-          onClick={() => status !== 'uploading' && inputRef.current?.click()}
-          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onClick={() => !busy && inputRef.current?.click()}
+          onDragOver={e => { e.preventDefault(); if (!busy) setDragOver(true); }}
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           style={{
             border: `2px dashed ${dragOver ? 'var(--primary)' : 'var(--border)'}`,
             borderRadius: 10, padding: '28px 16px', textAlign: 'center',
-            cursor: status === 'uploading' ? 'wait' : 'pointer',
+            cursor: busy ? 'wait' : 'pointer',
             background: dragOver ? 'var(--bg-surface-2)' : 'transparent',
             // Specific properties only — never `all`. Strong ease-out, sub-300ms.
             transition: 'border-color 180ms cubic-bezier(0.23,1,0.32,1), background-color 180ms cubic-bezier(0.23,1,0.32,1)',
-            opacity: status === 'uploading' ? 0.6 : 1,
+            opacity: phase === 'uploading' ? 0.6 : 1,
           }}
         >
-          {status === 'uploading' ? (
-            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Parsing your resume… this takes a few seconds</p>
+          {phase === 'uploading' ? (
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Uploading your resume…</p>
           ) : (
             <>
               <Upload size={24} style={{ color: 'var(--text-muted)', marginBottom: 8 }} />
@@ -429,7 +561,7 @@ function ResumeUploader({ compact, onParsed }: { compact?: boolean; onParsed: (p
           )}
         </div>
       )}
-      {error && <p style={{ fontSize: '0.78rem', color: 'var(--error)', marginTop: 8 }}>{error}</p>}
+      {shownError && <p style={{ fontSize: '0.78rem', color: 'var(--error)', marginTop: 8 }}>{shownError}</p>}
     </div>
   );
 }

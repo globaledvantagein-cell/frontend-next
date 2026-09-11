@@ -21,8 +21,12 @@ export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputE
           ref={ref}
           className={`sketch-ink ${className}`}
           style={{ ...INPUT_STYLE, ...(error ? { borderColor: 'var(--danger)' } : {}), ...style }}
-          onFocus={e => { e.currentTarget.style.borderColor = 'var(--primary)'; e.currentTarget.style.boxShadow = 'var(--focus-ring)'; onFocus?.(e); }}
-          onBlur={e => { e.currentTarget.style.borderColor = error ? 'var(--danger)' : 'var(--ink-border, var(--border))'; e.currentTarget.style.boxShadow = 'none'; onBlur?.(e); }}
+          // Focus styling lives in globals.css (input:focus). It used to be set
+          // here as INLINE styles, which beat any stylesheet rule — so the
+          // global soft-glow rule could never take effect on these inputs.
+          // The error border still comes from the style prop above.
+          onFocus={onFocus}
+          onBlur={onBlur}
           {...rest}
         />
         {error && <p style={{ color: 'var(--danger)', fontSize: '0.75rem', marginTop: 5, fontWeight: 500 }}>{error}</p>}

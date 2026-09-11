@@ -2,14 +2,25 @@
 
 import { useState, useEffect } from 'react';
 import { Link } from '@/compat/router';
-import { ClipboardList, RefreshCw, ArrowRight, FlaskConical, Globe, Trash2 } from 'lucide-react';
+import { ClipboardList, RefreshCw, ArrowRight, FlaskConical, Globe, Trash2, ShieldCheck } from 'lucide-react';
 import { Container, PageHeader, Button, StatCard } from '../components/ui';
 import { apiGet, apiPost } from '../utils/jobApi';
+import { ADMIN_QUICK_LINKS } from '../components/layout/navLinks';
 
 interface CleanSummary { total: number; cleaned: number; alreadyClean: number; }
 interface BackfillSummary { total: number; updated: number; logsTotal: number; logsUpdated: number; message: string; }
 interface SalaryFixSummary { total: number; fixed: number; }
-interface DbCounts { testLogs: number; pendingReview: number; activeJobs: number; rejectedJobs: number; }
+interface DbCounts {
+  testLogs: number;
+  /** Total awaiting review — matches the review page. Kept for compatibility. */
+  pendingReview: number;
+  /** Not live: blocked until an admin decides. */
+  pendingDecision: number;
+  /** Already live: auto-published, unconfirmed by a human. */
+  awaitingConfirmation: number;
+  activeJobs: number;
+  rejectedJobs: number;
+}
 
 export default function AdminDashboard() {
   // auth state — not used directly; ProtectedRoute already ensures admin access
@@ -75,9 +86,30 @@ export default function AdminDashboard() {
     }
   };
 
+  // The review queue holds two different things, and conflating them is
+  // misleading: one is a backlog, the other is already published.
+  //
+  //   Needs Decision       — NOT live. Blocked until an admin accepts/rejects.
+  //   Awaiting Confirmation — ALREADY live. Auto-published on high confidence,
+  //                           just unverified by a human. Nothing is blocked.
+  //
+  // The dashboard used to show only the first under the label "Review Queue"
+  // while the page it links to listed both, so the two never agreed (216 vs
+  // 346). Splitting them makes the backlog readable at a glance.
   const DB_COUNTS = [
     { icon: <FlaskConical size={18} />, value: counts?.testLogs ?? '–', label: 'Test Logs', accent: false },
-    { icon: <ClipboardList size={18} />, value: counts?.pendingReview ?? '–', label: 'Review Queue', accent: counts !== null && (counts.pendingReview > 0) },
+    {
+      icon: <ClipboardList size={18} />,
+      value: counts?.pendingDecision ?? '–',
+      label: 'Needs Decision',
+      accent: counts !== null && counts.pendingDecision > 0,
+    },
+    {
+      icon: <ShieldCheck size={18} />,
+      value: counts?.awaitingConfirmation ?? '–',
+      label: 'Awaiting Confirmation',
+      accent: false,
+    },
     { icon: <Globe size={18} />, value: counts?.activeJobs ?? '–', label: 'Live Jobs', accent: false },
     { icon: <Trash2 size={18} />, value: counts?.rejectedJobs ?? '–', label: 'Trash', accent: false },
   ];
@@ -94,7 +126,7 @@ export default function AdminDashboard() {
                 <Button variant="ghost" size="sm" onClick={cleanDescriptions} loading={cleaning}>Clean All Descriptions</Button>
                 <Button variant="ghost" size="sm" onClick={backfillExperience} loading={backfilling}>Backfill Experience Levels</Button>
                 <Button variant="ghost" size="sm" onClick={fixSalaries} loading={fixingSalaries}>Fix Salaries</Button>
-                <Link to="/review"><Button size="sm">Review Queue <ArrowRight size={13} /></Button></Link>
+                <Link to="/review"><Button size="sm">Review Queue{counts ? ` (${counts.pendingReview})` : ''} <ArrowRight size={13} /></Button></Link>
               </div>
             } />
         </Container>
@@ -120,6 +152,30 @@ export default function AdminDashboard() {
           : <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(180px,1fr))', gap: 14 }}>
             {DB_COUNTS.map(s => <StatCard key={s.label} icon={s.icon} value={s.value} label={s.label} accent={s.accent} />)}
           </div>}
+        {/* Admin tools not in the (deliberately short) top nav. */}
+        <div style={{ marginTop: 24 }}>
+          <p style={{ fontSize: '0.72rem', fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>
+            All admin tools
+          </p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {ADMIN_QUICK_LINKS.map(([href, label]) => (
+              <Link
+                key={href}
+                to={href}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '8px 14px', borderRadius: 10,
+                  border: '1px solid var(--border)', background: 'var(--surface-solid)',
+                  fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)',
+                  textDecoration: 'none',
+                }}
+              >
+                {label} <ArrowRight size={12} />
+              </Link>
+            ))}
+          </div>
+        </div>
+
         <div style={{ marginTop: 24, padding: '24px', background: 'var(--surface-solid)', border: '1.25px solid var(--border)', borderRadius: 14 }}>
           <p className="font-sketch" style={{ fontSize: '1rem', color: 'var(--primary)', marginBottom: 10 }}>System Status</p>
           <p style={{ fontSize: '0.9rem', color: 'var(--muted-ink)', lineHeight: 1.7 }}>

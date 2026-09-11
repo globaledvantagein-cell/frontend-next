@@ -1,7 +1,7 @@
 'use client';
 
 import { AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
-import type { IJob } from '../../types';
+import type { IAdminJob } from '../../types';
 import FormattedDescription from '../FormattedDescription';
 import { Badge, Button } from '../ui';
 import { formatPostedDate } from '../../utils/date';
@@ -34,9 +34,9 @@ export function confidenceLabel(score?: number) {
 }
 
 interface Props {
-  job: IJob;
+  job: IAdminJob;
   onDecision: (id: string, decision: 'accept' | 'reject') => void;
-  onUpdateJob: (updated: IJob) => void;
+  onUpdateJob: (updated: IAdminJob) => void;
 }
 
 export default function ReviewDetail({ job, onDecision, onUpdateJob }: Props) {
@@ -58,7 +58,7 @@ export default function ReviewDetail({ job, onDecision, onUpdateJob }: Props) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 10 }}>
           <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 600 }}>{job.Company}</span>
           <span style={{ color: 'var(--text-muted)' }}>|</span>
-          <EditableLocation job={job} onSave={onUpdateJob} />
+          <EditableLocation job={job} onSave={updated => onUpdateJob(updated as IAdminJob)} />
           <span style={{ color: 'var(--text-muted)' }}>|</span>
           <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Posted: {formatPostedDate(job.PostedDate || job.scrapedAt)}</span>
         </div>

@@ -19,7 +19,6 @@ export function Badge({ children, variant = 'neutral', style }: { children: Reac
     <span className="sketch-ink" style={{
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '3px 10px', borderRadius: 6,
-      fontFamily: "'Caveat', ui-sans-serif",
       fontSize: '0.82rem', fontWeight: 600,
       whiteSpace: 'nowrap',
       ...BADGE_STYLE[variant], ...style,

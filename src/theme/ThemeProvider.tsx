@@ -30,18 +30,27 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // Read the persisted / system preference once, client-side only.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const saved = localStorage.getItem('ej-theme') as Mode | null;
-    if (saved) setMode(saved);
+    // The inline boot script in app/layout.tsx already resolved the preference
+    // and stamped <html data-theme> before first paint; trust it so we never
+    // flip dark → light → dark during hydration.
+    const booted = document.documentElement.getAttribute('data-theme') as Mode | null;
+    let saved: Mode | null = null;
+    try { saved = localStorage.getItem('ej-theme') as Mode | null; } catch { /* private mode */ }
+    if (booted === 'dark' || booted === 'light') setMode(booted);
+    else if (saved === 'dark' || saved === 'light') setMode(saved);
     else if (window.matchMedia('(prefers-color-scheme: dark)').matches) setMode('dark');
     setMounted(true);
   }, []);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
+    // Until the preference above is read, `mode` is the SSR default ('light');
+    // applying it would briefly overwrite the boot script's dark palette.
+    if (!mounted) return;
     applyVars(mode === 'dark' ? darkVars : lightVars);
     document.documentElement.setAttribute('data-theme', mode);
-    localStorage.setItem('ej-theme', mode);
-  }, [mode]);
+    try { localStorage.setItem('ej-theme', mode); } catch { /* private mode */ }
+  }, [mode, mounted]);
 
   const toggle = () => setMode(m => m === 'dark' ? 'light' : 'dark');
 

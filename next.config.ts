@@ -16,6 +16,27 @@ const nextConfig: NextConfig = {
     ];
   },
 
+  // Legacy category slugs from the pre-28-category taxonomy. These are real
+  // 308s issued before routing, so Google transfers the old URLs' ranking
+  // signal to the current page instead of seeing a soft 404 (a redirect from
+  // inside the page cannot set a status — app/loading.tsx has already started
+  // the response stream). Mirrors LEGACY_CATEGORY_MAP in utils/categorize.ts.
+  async redirects() {
+    const legacyCategories: Record<string, string> = {
+      software: "software-engineering",
+      data: "data-analytics",
+      product_tech: "product-management",
+      product_nontech: "product-management",
+      other_tech: "it-enterprise-systems",
+      other_nontech: "other-general-business",
+    };
+    return Object.entries(legacyCategories).map(([from, to]) => ({
+      source: `/category/${from}`,
+      destination: `/category/${to}`,
+      permanent: true,
+    }));
+  },
+
   async headers() {
     return [
       {

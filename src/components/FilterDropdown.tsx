@@ -179,8 +179,7 @@ export default function FilterDropdown({
               style={{
                 width: '100%', height: 40, fontSize: '0.9rem',
                 background: 'var(--bg-surface-2)', border: '1px solid var(--border)',
-                borderRadius: 8, padding: '0 12px', color: 'var(--text-secondary)',
-                outline: 'none', fontFamily: 'inherit',
+                borderRadius: 8, padding: '0 12px', color: 'var(--text-secondary)', fontFamily: 'inherit',
               }}
             />
           </div>
@@ -235,8 +234,7 @@ export default function FilterDropdown({
             style={{
               width: '100%', height: 28, fontSize: '0.75rem',
               background: 'var(--bg-surface)', border: '1px solid var(--border)',
-              borderRadius: 6, padding: '0 8px', color: 'var(--text-secondary)',
-              outline: 'none', fontFamily: 'inherit',
+              borderRadius: 6, padding: '0 8px', color: 'var(--text-secondary)', fontFamily: 'inherit',
             }}
           />
         </div>
@@ -273,16 +271,15 @@ export default function FilterDropdown({
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           aria-label={`${label}: ${displayLabel}`}
+          className="filter-pill"
           style={{
             height: 34, fontSize: '0.76rem',
             color: active ? 'var(--acid)' : 'var(--text-secondary)',
             background: active ? 'var(--acid-soft)' : 'var(--bg-surface-2)',
             border: `1.5px solid ${active ? 'var(--acid)' : 'var(--border)'}`,
-            borderRadius: 8, paddingLeft: 10, paddingRight: 28,
-            outline: 'none', cursor: 'pointer',
+            paddingLeft: 12, paddingRight: 28, cursor: 'pointer',
             display: 'flex', alignItems: 'center',
             width: '100%', textAlign: 'left', position: 'relative', fontFamily: 'inherit',
-            transition: 'background 0.18s, border-color 0.18s, color 0.18s',
             fontWeight: active ? 600 : 400,
           }}
         >

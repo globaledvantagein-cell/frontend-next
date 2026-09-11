@@ -18,31 +18,37 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from '@/compat/router';
 import { ArrowLeft, Briefcase } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { fetchJobDetailCached } from '../utils/jobApi';
+import { fetchJobDetailCached, ApiError } from '../utils/jobApi';
 import PublicJobDetail from '../components/PublicJobDetail';
 import JobDetailSkeleton from '../components/JobDetailSkeleton';
 import SignupGate from '../components/SignupGate';
 import { Container } from '../components/ui';
+import { ErrorState, classifyError } from '../components/ui/ErrorState';
 import { BRAND } from '../theme/brand';
-import type { IJob } from '../types';
+import type { IJob, GatedTeaser } from '../types';
 
-export default function JobSharePage() {
+export default function JobSharePage({ initialJob = null }: { initialJob?: IJob | null } = {}) {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
-  const [job, setJob] = useState<IJob | null>(null);
+  // Seed from the server-fetched job so the first paint (and crawler HTML) shows
+  // content immediately; the client fetch below refines it for the logged-in
+  // user's gating. Only start in the loading state when we have no seed.
+  const [job, setJob] = useState<IJob | null>(initialJob);
   const [gated, setGated] = useState(false);
-  const [teaser, setTeaser] = useState<Record<string, unknown> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [teaser, setTeaser] = useState<GatedTeaser | null>(null);
+  const [loading, setLoading] = useState(!initialJob);
+  // 'notfound' → the job is gone (404-ish); anything else is a transport /
+  // server failure that deserves a retry rather than a dead end.
+  const [error, setError] = useState<{ kind: 'notfound' | 'failed'; raw: unknown } | null>(null);
   const [forceGate, setForceGate] = useState(false);
 
   // ── Fetch job (waits for auth init so we use the right cache lane) ────
   const fetchJob = useCallback(async () => {
     if (!id || authLoading) return;
-    setLoading(true);
     setError(null);
+    setLoading(prev => prev || !initialJob);
     try {
       const res = await fetchJobDetailCached(id, isAuthenticated);
       if (res.gated) {
@@ -57,11 +63,15 @@ export default function JobSharePage() {
         document.title = `${fullJob.JobTitle} at ${fullJob.Company} · ${BRAND.appName}`;
       }
     } catch (err: any) {
-      setError(err.message || 'This job could not be found.');
+      // A server-seeded job that fails to re-fetch (backend blip after SSR)
+      // keeps showing the seed instead of replacing it with an error.
+      const notFound = err instanceof ApiError && (err.status === 404 || err.status === 410);
+      if (!notFound && initialJob) { console.warn('[JobSharePage] refetch failed, keeping SSR job', err); return; }
+      setError({ kind: notFound ? 'notfound' : 'failed', raw: err });
     } finally {
       setLoading(false);
     }
-  }, [id, isAuthenticated, authLoading]);
+  }, [id, isAuthenticated, authLoading, initialJob]);
 
   useEffect(() => {
     document.title = BRAND.appName;
@@ -83,10 +93,28 @@ export default function JobSharePage() {
       return <JobDetailSkeleton />;
     }
 
-    // 2. Error / not found
+    // 2a. Transport / server failure — retry in place.
+    if (error && error.kind === 'failed') {
+      const { kind, hint } = classifyError(error.raw);
+      return (
+        <ErrorState
+          kind={kind}
+          title={kind === 'unreachable' ? 'Can’t reach the job server' : 'This job didn’t load'}
+          hint={hint}
+          onRetry={() => { setLoading(true); fetchJob(); }}
+          action={
+            <Link to="/jobs" style={{ fontSize: '0.84rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none' }}>
+              Browse all jobs
+            </Link>
+          }
+        />
+      );
+    }
+
+    // 2b. Not found
     if (error) {
       return (
-        <div style={{
+        <div className="page-fade-in" style={{
           textAlign: 'center', padding: '60px 20px',
           background: 'var(--bg-surface)',
           border: '1px dashed var(--border)',
@@ -128,6 +156,7 @@ export default function JobSharePage() {
     // 3. Gated (anonymous user over view limit, or Apply clicked without auth)
     if (forceGate || gated) {
       return (
+        <div className="page-fade-in">
         <SignupGate
           teaser={
             (teaser as any) ||
@@ -139,17 +168,20 @@ export default function JobSharePage() {
             fetchJob();
           }}
         />
+        </div>
       );
     }
 
     // 4. Full job detail
     if (job) {
       return (
-        <PublicJobDetail
-          job={job}
-          onApplyTracked={handleApplyTracked}
-          onAuthRequired={() => setForceGate(true)}
-        />
+        <div className="page-fade-in">
+          <PublicJobDetail
+            job={job}
+            onApplyTracked={handleApplyTracked}
+            onAuthRequired={() => setForceGate(true)}
+          />
+        </div>
       );
     }
 

@@ -2,7 +2,7 @@
 // backend (server-to-server) using API_ORIGIN. NEVER import this into a client
 // component — it has no auth token and is meant for public SEO data only.
 
-import type { IJob } from '@/types';
+import type { IJob, ICompany } from '@/types';
 
 const API_ORIGIN = process.env.API_ORIGIN || 'http://localhost:3000';
 
@@ -47,16 +47,37 @@ export async function fetchJobs(params: {
   return data ?? { jobs: [], totalJobs: 0 };
 }
 
-/** GET /api/jobs/public-bait — array of 9 newest teaser jobs. */
-export async function fetchBaitJobs(): Promise<IJob[]> {
-  const data = await getJson<IJob[]>('/api/jobs/public-bait');
+/** GET /api/jobs/public-bait — array of 9 newest teaser jobs. Pass `revalidate` to cache (ISR). */
+export async function fetchBaitJobs(revalidate?: number): Promise<IJob[]> {
+  const data = await getJson<IJob[]>('/api/jobs/public-bait', revalidate);
   return Array.isArray(data) ? data : [];
 }
 
-/** GET /api/jobs/directory — company directory stats. */
-export async function fetchDirectory(): Promise<Record<string, unknown>[]> {
-  const data = await getJson<Record<string, unknown>[]>('/api/jobs/directory');
+/** GET /api/jobs/directory — company directory stats. Pass `revalidate` to cache (ISR). */
+export async function fetchDirectory(revalidate?: number): Promise<ICompany[]> {
+  const data = await getJson<ICompany[]>('/api/jobs/directory', revalidate);
   return Array.isArray(data) ? data : [];
+}
+
+export interface RelatedJobs {
+  /** The viewed job's category, or null when it has none / is unknown. */
+  category: string | null;
+  /** Honest public count for that category, for the "N+ positions" copy. */
+  categoryTotal: number;
+  jobs: IJob[];
+}
+
+/**
+ * GET /api/jobs/:id/related — up to `limit` newest jobs in the same category,
+ * excluding the viewed one. Served from the backend's RAM cache (no DB), and
+ * the endpoint returns an empty set rather than an error for an unknown id, so
+ * the job page's related block simply doesn't render.
+ */
+export async function fetchRelatedJobs(id: string, limit = 5): Promise<RelatedJobs> {
+  const data = await getJson<RelatedJobs>(
+    `/api/jobs/${encodeURIComponent(id)}/related?limit=${limit}`,
+  );
+  return data ?? { category: null, categoryTotal: 0, jobs: [] };
 }
 
 /** GET /api/jobs/:id/full — full job (or gated teaser). Anonymous server request. */
@@ -87,38 +108,51 @@ export interface CareerArticle {
   updatedAt?: string;
 }
 
-async function fetchAdminArticles(revalidate?: number): Promise<CareerArticle[]> {
-  const token = process.env.CAREER_GUIDE_SERVICE_TOKEN;
+// All career-guide reads go through the PUBLIC, unauthenticated endpoints
+// (/api/career-guide/public*). No service token required — the old
+// /api/admin/career-guide route needed a CAREER_GUIDE_SERVICE_TOKEN (a 7-day
+// JWT) that expired and silently emptied these pages. The public endpoints
+// return published articles only.
+
+async function fetchCareerGuide<T>(path: string, revalidate?: number): Promise<T | null> {
   try {
     const cacheInit: RequestInit =
       revalidate != null ? { next: { revalidate } } : { cache: 'no-store' };
-    const res = await fetch(`${API_ORIGIN}/api/admin/career-guide`, {
-      ...cacheInit,
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { success?: boolean; articles?: CareerArticle[] };
-    return Array.isArray(data.articles) ? data.articles : [];
+    const res = await fetch(`${API_ORIGIN}/api/career-guide/public${path}`, cacheInit);
+    if (!res.ok) return null;
+    return (await res.json()) as T;
   } catch {
-    return [];
+    return null;
   }
 }
 
 export async function fetchPublishedArticles(revalidate?: number): Promise<CareerArticle[]> {
-  const all = await fetchAdminArticles(revalidate);
-  return all.filter((a) => a.status === 'published');
+  const data = await fetchCareerGuide<{ articles?: CareerArticle[] }>('', revalidate);
+  const articles = Array.isArray(data?.articles) ? data!.articles! : [];
+  // Defensive: the endpoint already filters to published, but never leak a draft.
+  return articles.filter((a) => a.status === 'published');
 }
 
 export async function fetchArticlesByCategory(
   category: string,
   revalidate?: number,
 ): Promise<CareerArticle[]> {
-  return (await fetchPublishedArticles(revalidate)).filter((a) => a.category === category);
+  const data = await fetchCareerGuide<{ articles?: CareerArticle[] }>(
+    `/${encodeURIComponent(category)}`,
+    revalidate,
+  );
+  const articles = Array.isArray(data?.articles) ? data!.articles! : [];
+  return articles.filter((a) => a.status === 'published');
 }
 
 export async function fetchArticleBySlug(
   slug: string,
   revalidate?: number,
 ): Promise<CareerArticle | null> {
-  return (await fetchPublishedArticles(revalidate)).find((a) => a.slug === slug) ?? null;
+  const data = await fetchCareerGuide<{ article?: CareerArticle }>(
+    `/article/${encodeURIComponent(slug)}`,
+    revalidate,
+  );
+  const article = data?.article ?? null;
+  return article && article.status === 'published' ? article : null;
 }

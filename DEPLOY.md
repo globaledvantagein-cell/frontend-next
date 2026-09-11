@@ -20,8 +20,6 @@ NEXT_PUBLIC_GOOGLE_CLIENT_ID=<google oauth client id>
 NEXT_PUBLIC_ENABLE_PROFILE=true
 API_ORIGIN=http://localhost:3000          # Express backend (server-to-server SSR fetches + /api proxy)
 NEXT_PUBLIC_SITE_URL=https://englishjobsgermany.com   # used for canonical / OG / JSON-LD / sitemap
-# Optional: lets SSR career-guide pages read articles from the admin JSON API.
-# CAREER_GUIDE_SERVICE_TOKEN=<admin bearer token>
 ```
 
 ## Build & run
@@ -82,6 +80,6 @@ location / {
   server-side with `generateMetadata`, JSON-LD, and breadcrumbs. Verify with
   **View Page Source** — the H1, meta description, and `application/ld+json`
   blocks must be present in the raw HTML.
-- Career-guide article data comes from the admin JSON API. Set
-  `CAREER_GUIDE_SERVICE_TOKEN` so SSR can read it; otherwise those pages render
-  their empty state.
+- Career-guide article data comes from the PUBLIC, unauthenticated backend
+  endpoints (`/api/career-guide/public*`). No token is required — SSR renders
+  published articles as long as `API_ORIGIN` points at the Express backend.

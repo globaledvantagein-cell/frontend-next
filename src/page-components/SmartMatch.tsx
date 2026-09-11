@@ -13,6 +13,8 @@ import { Sparkles, Upload, RotateCcw } from 'lucide-react';
 import { Container, PageHeader, Badge, Button, Alert } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { apiGet } from '../utils/jobApi';
+import { track } from '../utils/analytics';
+import { PremiumPitch } from '../components/UpgradeModal';
 import MatchProgress from '../components/MatchProgress';
 import ParsedProfileCard from '../components/ParsedProfileCard';
 import MatchResults from '../components/MatchResults';
@@ -35,7 +37,7 @@ function toUiError(err: unknown): { message: string } {
 }
 
 export default function SmartMatch() {
-  const { token, isLoading: authLoading } = useAuth();
+  const { token, isLoading: authLoading, isPremium, isAdmin, usage } = useAuth();
   const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [result, setResult] = useState<MatchResponse | null>(null);
@@ -45,9 +47,20 @@ export default function SmartMatch() {
   useEffect(() => { document.title = `Smart Match · ${BRAND.appName}`; }, []);
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  // Check if user has a stored profile + load cached results
+  // Funnel: a non-premium user hit the Smart Match premium wall.
   useEffect(() => {
-    if (authLoading || !token) return;
+    if (!authLoading && (isAdmin || usage !== null) && !isPremium) {
+      track('premium_feature_blocked', { feature: 'smart_match' });
+    }
+  }, [authLoading, isAdmin, usage, isPremium]);
+
+  // Check if user has a stored profile + load cached results.
+  // Premium-gated: non-premium users see the pitch and never hit the
+  // (403-ing) resume-match endpoint. Mirrors the render gate below —
+  // admins are always premium; others need usage loaded first.
+  const premiumKnown = isAdmin || (usage !== null && isPremium);
+  useEffect(() => {
+    if (authLoading || !token || !premiumKnown) return;
     apiGet<{ parsedProfile?: unknown }>('/api/auth/me')
       .then(data => setHasProfile(!!data?.parsedProfile))
       .catch(() => setHasProfile(false));
@@ -61,7 +74,7 @@ export default function SmartMatch() {
         }
       })
       .catch(() => { /* no cache, that's fine */ });
-  }, [token, authLoading]);
+  }, [token, authLoading, premiumKnown]);
 
   const runMatch = async (payload?: { text: string }) => {
     abortRef.current?.abort();
@@ -95,7 +108,39 @@ export default function SmartMatch() {
   const handleRunMatch = () => runMatch();
   const handleReset = () => { setStatus('idle'); setResult(null); setError(null); };
 
-  if (authLoading || hasProfile === null) {
+  if (authLoading) {
+    return (
+      <Container style={{ padding: '40px 24px' }}>
+        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+      </Container>
+    );
+  }
+
+  // Premium gate — Smart Match is Premium-only. Wait until premium status is
+  // known (admins are always premium; others need the usage fetch), then either
+  // show the pitch (non-premium) or fall through to the real UI.
+  if (!isAdmin && usage === null) {
+    return (
+      <Container style={{ padding: '40px 24px' }}>
+        <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />
+      </Container>
+    );
+  }
+  if (!isPremium) {
+    return (
+      <div style={{ background: 'var(--bg-base)', minHeight: '80vh' }}>
+        <Container style={{ maxWidth: 800, padding: '40px 24px 48px' }}>
+          <PremiumPitch
+            icon={<Sparkles size={26} />}
+            title="Smart Match — Premium"
+            description="AI-ranks every English-speaking role in Germany against your resume — skills, experience, and preferences — so the best-fit jobs rise to the top. Available with Premium."
+          />
+        </Container>
+      </div>
+    );
+  }
+
+  if (hasProfile === null) {
     return (
       <Container style={{ padding: '40px 24px' }}>
         <div className="skeleton" style={{ height: 200, borderRadius: 12 }} />

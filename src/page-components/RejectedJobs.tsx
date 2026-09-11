@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { IJob } from '../types';
+import type { IAdminJob } from '../types';
 import { Trash2, RefreshCw, Download, ExternalLink, MapPin } from 'lucide-react';
 import { Container, PageHeader, Button, EmptyState, Badge } from '../components/ui';
 import { CONTENT } from '../theme/content';
@@ -13,7 +13,7 @@ import { useSplitView } from '../hooks/useSplitView';
 import { apiGet, apiPatch } from '../utils/jobApi';
 
 export default function RejectedJobs() {
-  const [jobs, setJobs] = useState<IJob[]>([]);
+  const [jobs, setJobs] = useState<IAdminJob[]>([]);
   const [loading, setLoading] = useState(false);
 
   const {
@@ -27,7 +27,7 @@ export default function RejectedJobs() {
   const fetchRejected = async () => {
     setLoading(true);
     try {
-      const d = await apiGet<IJob[]>('/api/jobs/rejected');
+      const d = await apiGet<IAdminJob[]>('/api/jobs/rejected');
       setJobs(Array.isArray(d) ? d : []);
     } catch (e) {
       console.error('[RejectedJobs]', e);
@@ -175,7 +175,7 @@ export default function RejectedJobs() {
   );
 }
 
-function AdminJobDetail({ job, onRestore }: { job: IJob; onRestore: (id: string) => void }) {
+function AdminJobDetail({ job, onRestore }: { job: IAdminJob; onRestore: (id: string) => void }) {
   const allLocations = parseAllLocations(job);
   const primaryLocation = getPrimaryLocation(job, allLocations);
   const wp = normalizeWorkplace(job.WorkplaceType);

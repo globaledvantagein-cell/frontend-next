@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw, ShieldCheck } from 'lucide-react';
-import type { IJob } from '../types';
+import type { IAdminJob } from '../types';
 import MobileDetailOverlay from '../components/MobileDetailOverlay';
 import { Badge, Button, Container, EmptyState, PageHeader } from '../components/ui';
 import { getDisplayLocation } from '../utils/job';
@@ -26,7 +26,7 @@ interface ReanalyzeSummary {
 }
 
 export default function ReviewQueue() {
-  const [jobs, setJobs] = useState<IJob[]>([]);
+  const [jobs, setJobs] = useState<IAdminJob[]>([]);
   const [totalJobs, setTotalJobs] = useState(0);
   const [loading, setLoading] = useState(false);
   const [reanalyzingAll, setReanalyzingAll] = useState(false);
@@ -49,7 +49,7 @@ export default function ReviewQueue() {
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      const payload = await apiGet<{ jobs?: IJob[]; totalJobs?: number }>('/api/jobs/admin/review');
+      const payload = await apiGet<{ jobs?: IAdminJob[]; totalJobs?: number }>('/api/jobs/admin/review');
       const nextJobs = Array.isArray(payload?.jobs) ? payload.jobs : [];
       setJobs(nextJobs);
       setTotalJobs(payload?.totalJobs || nextJobs.length);
@@ -73,7 +73,7 @@ export default function ReviewQueue() {
     }
   };
 
-  const handleUpdateJob = (updated: IJob) => {
+  const handleUpdateJob = (updated: IAdminJob) => {
     setJobs(prev => prev.map(j => j._id === updated._id ? updated : j));
   };
 
@@ -93,7 +93,7 @@ export default function ReviewQueue() {
     }
   };
 
-  const renderJobListItem = (job: IJob, onClick: () => void) => {
+  const renderJobListItem = (job: IAdminJob, onClick: () => void) => {
     const selected = job._id === selectedJobId;
     const confidence = normalizeConfidence(job.ConfidenceScore);
 

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
+import { useNavigate } from '@/compat/router';
 import { MapPin, ArrowUpRight } from 'lucide-react';
 import { Badge } from './ui';
 import type { ICompany } from '../types';
+import { companyLogoUrl } from '../utils/companyLogo';
 
 interface Props {
   company: ICompany;
@@ -11,15 +13,21 @@ interface Props {
   adminActions?: ReactNode;
   /** Homepage carousel hides location so cards stay uniform height. */
   hideLocation?: boolean;
+  /**
+   * When set, the card navigates to this INTERNAL path (client-side) instead of
+   * opening the employer's external site — keeps homepage link equity on-site.
+   */
+  internalHref?: string;
 }
 
-export default function CompanyCard({ company, adminActions, hideLocation }: Props) {
+export default function CompanyCard({ company, adminActions, hideLocation, internalHref }: Props) {
+  const navigate = useNavigate();
   const [imgErr, setImgErr] = useState(false);
   const [hov, setHov] = useState(false);
 
-  const host = (d: string) => { const s = (d || '').trim(); try { return new URL(/^https?:\/\//i.test(s) ? s : `https://${s}`).hostname; } catch { return s.replace(/^https?:\/\//i, '').split('/')[0]; } };
   const visit = () => {
     if (adminActions) return; // Don't open link in admin mode
+    if (internalHref) { navigate(internalHref); return; }
     let u = (company.domain || '').trim(); if (!/^https?:\/\//i.test(u)) u = `https://${u}`; window.open(u, '_blank');
   };
 
@@ -64,8 +72,8 @@ export default function CompanyCard({ company, adminActions, hideLocation }: Pro
           borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
           overflow: 'hidden', padding: 6, flexShrink: 0,
         }}>
-          {!imgErr
-            ? <img src={`https://logo.clearbit.com/${host(company.domain)}?size=128`} alt={company.companyName}
+          {!imgErr && companyLogoUrl(company)
+            ? <img src={companyLogoUrl(company)!} alt={company.companyName}
               style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: hov ? 'none' : 'grayscale(40%) brightness(0.9)', opacity: hov ? 1 : 0.75, transition: 'filter 0.3s ease, opacity 0.3s ease' }}
               onError={() => setImgErr(true)} />
             : <span className="font-sketch" style={{ fontSize: '1.3rem', color: 'var(--primary)', fontWeight: 700 }}>{company.companyName.charAt(0)}</span>}
